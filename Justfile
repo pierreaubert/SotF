@@ -37,7 +37,7 @@ update-ts:
 test: test-rust test-ts
 
 test-rust:
-	cargo test --workspace --release
+	cd src-tauri &&
 
 test-ts:
 	npm run test
@@ -97,3 +97,34 @@ install-macos:
 	# For Tauri
 	rustup target add aarch64-apple-darwin
 	rustup target add x86_64-apple-darwin
+
+install-ubuntu-arm:
+        sudo apt install -y \
+             curl \
+             build-essential gcc g++ \
+             pkg-config \
+             libssl-dev \
+             ca-certificates \
+             cmake \
+             ninja-build \
+             perl \
+             rustup \
+             just \
+             libglib2.0-dev \
+             libgtk-3-dev \
+             libwebkit2gtk-4.1-dev \
+             libayatana-appindicator3-dev \
+             librsvg2-dev \
+             patchelf \
+             libopenblas-dev \
+             gfortran \
+             chromium-browser \
+             chromium-chromedriver
+        # rust
+        rustup default stable
+        # node
+        sudo npm cache clean -f
+        sudo npm install -f n
+        sudo n stable
+        /usr/local/bin/npm install .
+

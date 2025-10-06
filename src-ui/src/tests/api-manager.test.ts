@@ -62,6 +62,10 @@ const createMockElement = (tagName: string = "div", type?: string) => {
       height: 30,
     })),
     focus: vi.fn(),
+    removeAttribute: vi.fn(),
+    setAttribute: vi.fn(),
+    getAttribute: vi.fn(() => null),
+    hasAttribute: vi.fn(() => false),
     options: [] as any[],
     selectedIndex: 0,
   };

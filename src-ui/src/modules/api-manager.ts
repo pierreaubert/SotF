@@ -241,8 +241,8 @@ export class APIManager {
           versionSelect.appendChild(option);
         });
 
-        // Enable version dropdown
-        versionSelect.disabled = false;
+        // Enable version dropdown - remove disabled attribute explicitly
+        versionSelect.removeAttribute('disabled');
 
         // Automatically select the first version
         versionSelect.value = versions[0];
@@ -303,8 +303,8 @@ export class APIManager {
           measurementSelect.appendChild(option);
         });
 
-        // Enable measurement dropdown
-        measurementSelect.disabled = false;
+        // Enable measurement dropdown - remove disabled attribute explicitly
+        measurementSelect.removeAttribute('disabled');
 
         // Automatically select the first measurement
         measurementSelect.value = measurements[0];

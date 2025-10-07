@@ -65,7 +65,9 @@ export class APIManager {
           if (selectElement.disabled === false) {
             selectElement.focus();
             selectElement.dispatchEvent(focusEvent);
-            selectElement.blur();
+            if (typeof selectElement.blur === 'function') {
+              selectElement.blur();
+            }
             selectElement.dispatchEvent(changeEvent);
           }
 

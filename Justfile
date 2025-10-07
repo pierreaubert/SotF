@@ -1,3 +1,8 @@
+# --------------------------------------------------------- -*- just -*-
+# How to install Just?
+#     cargo install just
+# ----------------------------------------------------------------------
+
 # List all available commands
 default:
 	@just --list

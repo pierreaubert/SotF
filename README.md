@@ -4,11 +4,11 @@
 
 ## Introduction
 
-This is the desktop application (Tauri-based) for AutoEQ. It provides a graphical user interface for optimizing speaker and headphone equalization based on measurements.
+This is a desktop application for AutoEQ. It provides a graphical user interface for optimizing speaker and headphone equalization based on measurements.
 
 The application uses Tauri (Rust backend + TypeScript frontend) to provide a cross-platform desktop experience.
 
-## Prerequisites
+## Installation
 
 ### Rust
 
@@ -20,25 +20,20 @@ If you already have cargo / rustup:
 cargo install just
 ```
 
-### Node.js
-
-Install Node.js 18 or higher.
-
-### Platform-specific Requirements
+### Platform-specific
 
 #### macOS
 
 Install [brew](https://brew.sh/) first, then:
 
 ```shell
-brew install npm
+just install-macos
 ```
 
 #### Linux
 
 ```shell
-sudo apt-get update
-sudo apt-get install -y build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+just install-linux
 ```
 
 #### Windows
@@ -113,7 +108,7 @@ autoeq-app/
 ## Testing
 
 ```shell
-npm run test
+just test
 ```
 
 ## Troubleshooting

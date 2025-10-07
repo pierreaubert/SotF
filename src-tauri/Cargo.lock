@@ -479,7 +479,6 @@ dependencies = [
  "csv",
  "ndarray",
  "plotly",
- "plotly_static 0.1.0",
  "reqwest 0.12.23",
  "serde",
  "serde_json",

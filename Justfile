@@ -37,7 +37,7 @@ update-ts:
 test: test-rust test-ts
 
 test-rust:
-	cd src-tauri &&
+	cd src-tauri && cargo test
 
 test-ts:
 	npm run test
@@ -49,7 +49,7 @@ test-ts:
 fmt: fmt-rust fmt-ts
 
 fmt-rust:
-	cargo fmt --all
+	cd src-tauri && cargo fmt --all
 
 fmt-ts:
 	npm run fmt

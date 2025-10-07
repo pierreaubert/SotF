@@ -66,6 +66,10 @@ const createMockElement = (tagName: string = "div", type?: string) => {
     setAttribute: vi.fn(),
     getAttribute: vi.fn(() => null),
     hasAttribute: vi.fn(() => false),
+    cloneNode: vi.fn(() => createMockElement(tagName, type)),
+    replaceChild: vi.fn(),
+    offsetHeight: 0,
+    offsetWidth: 0,
     options: [] as any[],
     selectedIndex: 0,
   };
@@ -73,6 +77,9 @@ const createMockElement = (tagName: string = "div", type?: string) => {
   if (tagName === "select") {
     element.options = [];
     element.selectedIndex = 0;
+    // Mock methods for options manipulation
+    (element as any).add = vi.fn();
+    (element as any).remove = vi.fn();
   }
 
   return element;
@@ -110,6 +117,13 @@ beforeEach(() => {
   // Mock window properties
   (window as any).scrollY = 0;
   (window as any).scrollX = 0;
+
+  // Mock requestAnimationFrame
+  global.requestAnimationFrame = vi.fn((callback) => {
+    setTimeout(callback, 16);
+    return 1;
+  });
+
   Object.defineProperty(window, "matchMedia", {
     writable: true,
     value: vi.fn().mockImplementation((query) => ({

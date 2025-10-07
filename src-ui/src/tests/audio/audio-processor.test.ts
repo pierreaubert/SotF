@@ -26,6 +26,13 @@ const mockAudioContext = {
       }
     }),
   })),
+  createBuffer: vi.fn((channels: number, length: number, sampleRate: number) => ({
+    duration: length / sampleRate,
+    length: length,
+    numberOfChannels: channels,
+    sampleRate: sampleRate,
+    getChannelData: vi.fn(() => new Float32Array(length)),
+  })),
   createBufferSource: vi.fn(() => ({
     connect: vi.fn(),
     disconnect: vi.fn(),
@@ -41,6 +48,31 @@ const mockAudioContext = {
     frequency: { value: 1000 },
     Q: { value: 1 },
     gain: { value: 0 },
+  })),
+  createOscillator: vi.fn(() => ({
+    type: "sine",
+    frequency: {
+      value: 1000,
+      setValueAtTime: vi.fn(),
+      exponentialRampToValueAtTime: vi.fn(),
+    },
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+    start: vi.fn(),
+    stop: vi.fn(),
+  })),
+  createChannelMerger: vi.fn(() => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  })),
+  createChannelSplitter: vi.fn(() => ({
+    connect: vi.fn(),
+    disconnect: vi.fn(),
+  })),
+  createScriptProcessor: vi.fn(() => ({
+    onaudioprocess: null,
+    connect: vi.fn(),
+    disconnect: vi.fn(),
   })),
   createMediaStreamSource: vi.fn(() => ({
     connect: vi.fn(),
@@ -81,6 +113,14 @@ Object.defineProperty(navigator, "mediaDevices", {
 
 // Mock fetch for audio loading
 globalThis.fetch = vi.fn();
+
+// Mock setTimeout to speed up tests
+let timeoutId = 0;
+vi.stubGlobal('setTimeout', (callback: Function, delay?: number) => {
+  // Speed up tests by reducing delays
+  const actualDelay = Math.min(delay || 0, 10); // Max 10ms delay
+  return (global.setTimeout as any)(callback, actualDelay);
+});
 
 describe("AudioProcessor", () => {
   let audioProcessor: AudioProcessor;
@@ -130,6 +170,8 @@ describe("AudioProcessor", () => {
 
   describe("Capture Process", () => {
     test("should start capture and return result", async () => {
+      // Set a very short duration for testing (50ms instead of 10 seconds)
+      audioProcessor.setSweepDuration(0.05);
       const result = await audioProcessor.startCapture();
 
       expect(result).toBeDefined();

@@ -23,6 +23,109 @@ export class APIManager {
     this.loadSpeakers();
   }
 
+  /**
+   * Enables a select element with cross-browser compatibility
+   * Addresses issues with Chrome on Linux where disabled selects don't re-enable properly
+   */
+  private enableSelectElement(selectElement: HTMLSelectElement): void {
+    try {
+      console.log(`Attempting to enable select element: ${selectElement.id}`);
+
+      // Method 1: Remove disabled attribute and property
+      selectElement.removeAttribute("disabled");
+      selectElement.disabled = false;
+
+      // Method 2: Remove any CSS-based disabling
+      selectElement.style.pointerEvents = "";
+      selectElement.style.opacity = "";
+      selectElement.classList.remove("disabled");
+
+      // Method 3: Force complete DOM reflow with multiple techniques
+      const originalDisplay = selectElement.style.display;
+      selectElement.style.display = "none";
+      selectElement.offsetHeight; // Force reflow
+      selectElement.style.display = originalDisplay || "";
+
+      // Method 4: Force style recalculation by changing and reverting a style
+      const originalPosition = selectElement.style.position;
+      selectElement.style.position = "relative";
+      selectElement.offsetWidth; // Force style recalculation
+      selectElement.style.position = originalPosition || "";
+
+      // Method 5: Use requestAnimationFrame to ensure DOM updates are processed
+      requestAnimationFrame(() => {
+        selectElement.removeAttribute("disabled");
+        selectElement.disabled = false;
+
+        // Method 6: Trigger synthetic events to force browser recognition
+        const changeEvent = new Event("change", { bubbles: true });
+        const focusEvent = new Event("focus", { bubbles: true });
+
+        setTimeout(() => {
+          if (selectElement.disabled === false) {
+            selectElement.focus();
+            selectElement.dispatchEvent(focusEvent);
+            selectElement.blur();
+            selectElement.dispatchEvent(changeEvent);
+          }
+
+          // Final verification - if still disabled, try nuclear option
+          if (selectElement.disabled === true) {
+            console.warn(
+              `Select element ${selectElement.id} is still disabled after all attempts`,
+            );
+            this.nuclearEnableSelect(selectElement);
+          }
+        }, 20);
+      });
+
+      console.log(`Enable attempt completed for: ${selectElement.id}`);
+    } catch (error) {
+      console.error("Error enabling select element:", error);
+      // Fallback: just set disabled to false
+      selectElement.disabled = false;
+    }
+  }
+
+  /**
+   * Nuclear option: completely replace the select element if it's still disabled
+   * This is a last resort for Chrome on Linux
+   */
+  private nuclearEnableSelect(selectElement: HTMLSelectElement): void {
+    try {
+      console.log(`Using nuclear option for: ${selectElement.id}`);
+
+      const parent = selectElement.parentElement;
+      if (!parent) return;
+
+      // Clone the element without the disabled attribute
+      const newSelect = document.createElement("select");
+      newSelect.id = selectElement.id;
+      newSelect.name = selectElement.name;
+      newSelect.className = selectElement.className;
+
+      // Copy all options
+      Array.from(selectElement.options).forEach((option) => {
+        const newOption = document.createElement("option");
+        newOption.value = option.value;
+        newOption.textContent = option.textContent;
+        newOption.selected = option.selected;
+        newSelect.appendChild(newOption);
+      });
+
+      // Ensure it's not disabled
+      newSelect.disabled = false;
+      newSelect.removeAttribute("disabled");
+
+      // Replace the old element
+      parent.replaceChild(newSelect, selectElement);
+
+      console.log(`Nuclear replacement completed for: ${newSelect.id}`);
+    } catch (error) {
+      console.error("Nuclear enable failed:", error);
+    }
+  }
+
   async loadSpeakers(): Promise<void> {
     try {
       console.log("Loading speakers from API...");
@@ -241,8 +344,8 @@ export class APIManager {
           versionSelect.appendChild(option);
         });
 
-        // Enable version dropdown - remove disabled attribute explicitly
-        versionSelect.removeAttribute('disabled');
+        // Enable version dropdown with cross-browser compatibility
+        this.enableSelectElement(versionSelect);
 
         // Automatically select the first version
         versionSelect.value = versions[0];
@@ -303,8 +406,8 @@ export class APIManager {
           measurementSelect.appendChild(option);
         });
 
-        // Enable measurement dropdown - remove disabled attribute explicitly
-        measurementSelect.removeAttribute('disabled');
+        // Enable measurement dropdown with cross-browser compatibility
+        this.enableSelectElement(measurementSelect);
 
         // Automatically select the first measurement
         measurementSelect.value = measurements[0];

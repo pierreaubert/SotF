@@ -98,141 +98,141 @@ export function generateDataAcquisition(): string {
 <div class="section-group">
     <h3>Data Acquisition</h3>
     <div class="input-source-tabs">
-        <label class="tab-label active" data-tab="file" title="Files">
-            <input type="radio" name="input_source" value="file" checked />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
-                <polyline points="13 2 13 9 20 9"></polyline>
-            </svg>
-        </label>
-        <label class="tab-label" data-tab="speaker" title="Speakers">
-            <input type="radio" name="input_source" value="speaker" />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect width="16" height="20" x="4" y="2" rx="2"></rect>
-                <path d="M12 6h.01"></path>
-                <circle cx="12" cy="14" r="4"></circle>
-                <path d="M12 14h.01"></path>
-            </svg>
-        </label>
-        <label class="tab-label" data-tab="headphone" title="Headphones">
-            <input type="radio" name="input_source" value="headphone" />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
-                <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
-            </svg>
-        </label>
-        <label class="tab-label" data-tab="capture" title="Capture">
-            <input type="radio" name="input_source" value="capture" />
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                <line x1="12" y1="19" x2="12" y2="23"></line>
-                <line x1="8" y1="23" x2="16" y2="23"></line>
-            </svg>
-        </label>
+      <label class="tab-label active" data-tab="file" title="Files">
+        <input type="radio" name="input_source" value="file" checked />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"></path>
+          <polyline points="13 2 13 9 20 9"></polyline>
+        </svg>
+      </label>
+      <label class="tab-label" data-tab="speaker" title="Speakers">
+        <input type="radio" name="input_source" value="speaker" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect width="16" height="20" x="4" y="2" rx="2"></rect>
+          <path d="M12 6h.01"></path>
+          <circle cx="12" cy="14" r="4"></circle>
+          <path d="M12 14h.01"></path>
+        </svg>
+      </label>
+      <label class="tab-label" data-tab="headphone" title="Headphones">
+        <input type="radio" name="input_source" value="headphone" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 18v-6a9 9 0 0 1 18 0v6"></path>
+          <path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>
+        </svg>
+      </label>
+      <label class="tab-label" data-tab="capture" title="Capture">
+        <input type="radio" name="input_source" value="capture" />
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+          <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+          <line x1="12" y1="19" x2="12" y2="23"></line>
+          <line x1="8" y1="23" x2="16" y2="23"></line>
+        </svg>
+      </label>
     </div>
 
     <div id="file_inputs" class="tab-content active">
-        <div class="compact-row">
-            <input type="text" id="curve_path" name="curve_path" placeholder="Input CSV path" />
-            <button type="button" id="browse_curve" class="browse-btn">📁</button>
-        </div>
-        <div class="compact-row">
-            <input type="text" id="target_path" name="target_path" placeholder="Target CSV path (optional)" />
-            <button type="button" id="browse_target" class="browse-btn">📁</button>
-        </div>
+      <div class="compact-row">
+        <input type="text" id="curve_path" name="curve_path" placeholder="Input CSV path" />
+        <button type="button" id="browse_curve" class="browse-btn">📁</button>
+      </div>
+      <div class="compact-row">
+        <input type="text" id="target_path" name="target_path" placeholder="Target CSV path (optional)" />
+        <button type="button" id="browse_target" class="browse-btn">📁</button>
+      </div>
     </div>
 
     <div id="speaker_inputs" class="tab-content">
-        <div class="autocomplete-container">
-            <input type="text" id="speaker" name="speaker" placeholder="Start typing speaker name..." autocomplete="off" />
-            <div id="speaker_dropdown" class="autocomplete-dropdown"></div>
-        </div>
-        <select id="version" name="version" disabled>
-            <option value="">Select Version</option>
-        </select>
-        <select id="measurement" name="measurement" disabled>
-            <option value="">Select Measurement</option>
-        </select>
+      <div class="autocomplete-container">
+        <input type="text" id="speaker" name="speaker" placeholder="Start typing speaker name..." autocomplete="off" />
+        <div id="speaker_dropdown" class="autocomplete-dropdown"></div>
+      </div>
+      <select id="version" name="version" disabled>
+        <option value="">Select Version</option>
+      </select>
+      <select id="measurement" name="measurement" disabled>
+        <option value="">Select Measurement</option>
+      </select>
     </div>
 
     <div id="headphone_inputs" class="tab-content">
-        <div class="compact-row">
-            <input type="text" id="headphone_curve_path" name="headphone_curve_path" placeholder="Headphone curve CSV path" />
-            <button type="button" id="browse_headphone_curve" class="browse-btn">📁</button>
-        </div>
-        <select id="headphone_target" name="headphone_target">
-            <option value="">Select Target...</option>
-            <option value="harman-over-ear-2018">Harman Over-Ear 2018</option>
-            <option value="harman-over-ear-2015">Harman Over-Ear 2015</option>
-            <option value="harman-over-ear-2013">Harman Over-Ear 2013</option>
-            <option value="harman-in-ear-2019">Harman In-Ear 2019</option>
-        </select>
+      <div class="compact-row">
+        <input type="text" id="headphone_curve_path" name="headphone_curve_path" placeholder="Headphone curve CSV path" />
+        <button type="button" id="browse_headphone_curve" class="browse-btn">📁</button>
+      </div>
+      <select id="headphone_target" name="headphone_target">
+        <option value="">Select Target...</option>
+        <option value="harman-over-ear-2018">Harman Over-Ear 2018</option>
+        <option value="harman-over-ear-2015">Harman Over-Ear 2015</option>
+        <option value="harman-over-ear-2013">Harman Over-Ear 2013</option>
+        <option value="harman-in-ear-2019">Harman In-Ear 2019</option>
+      </select>
     </div>
 
     <div id="capture_inputs" class="tab-content">
-        <div class="capture-controls">
-            <div class="capture-device-selection">
-                <label for="capture_device">Microphone:</label>
-                <select id="capture_device" class="capture-device-select">
-                    <option value="">Loading devices...</option>
-                </select>
-                <button type="button" id="refresh_devices" class="refresh-devices-btn" title="Refresh devices">🔄</button>
-            </div>
-            <div class="capture-output-selection">
-                <label for="output_channel">Output Channel:</label>
-                <select id="output_channel" class="output-channel-select">
-                    <option value="both" selected>Both Channels</option>
-                    <option value="left">Left Channel Only</option>
-                    <option value="right">Right Channel Only</option>
-                    <option value="default">System Default</option>
-                </select>
-            </div>
-            <div class="capture-sample-rate">
-                <label for="capture_sample_rate">Sample Rate:</label>
-                <select id="capture_sample_rate" class="capture-sample-rate-select">
-                    <option value="44100">44.1 kHz</option>
-                    <option value="48000" selected>48 kHz</option>
-                    <option value="96000">96 kHz</option>
-                    <option value="192000">192 kHz</option>
-                </select>
-            </div>
-            <div class="capture-signal-type">
-                <label for="signal_type">Signal Type:</label>
-                <select id="signal_type" class="signal-type-select">
-                    <option value="sweep" selected>Frequency Sweep</option>
-                    <option value="white">White Noise</option>
-                    <option value="pink">Pink Noise</option>
-                </select>
-            </div>
-            <div class="capture-sweep-controls" id="sweep_duration_container">
-                <label for="sweep_duration">Duration:</label>
-                <select id="sweep_duration" class="sweep-duration-select">
-                    <option value="5">5 seconds</option>
-                    <option value="10" selected>10 seconds</option>
-                    <option value="15">15 seconds</option>
-                    <option value="20">20 seconds</option>
-                </select>
-            </div>
-            <button type="button" id="capture_btn" class="capture-button">🎤 Start Capture</button>
-            <div id="capture_status" class="capture-status" style="display: none">
-                <div class="capture-progress">
-                    <span id="capture_status_text">Ready</span>
-                    <div class="capture-progress-bar" style="display: none">
-                        <div class="capture-progress-fill" id="capture_progress_fill"></div>
-                    </div>
-                </div>
-                <canvas id="capture_waveform" class="capture-waveform" style="display: none"></canvas>
-                <canvas id="capture_spectrum" class="capture-spectrum" style="display: none"></canvas>
-            </div>
-            <div id="capture_result" class="capture-result" style="display: none">
-                <div class="capture-result-info">
-                    <span>✅ Captured response ready</span>
-                    <button type="button" id="capture_clear" class="capture-clear-btn">Clear</button>
-                </div>
-                <div id="capture_plot" class="capture-plot"></div>
-            </div>
+      <div class="capture-controls">
+        <div class="capture-device-selection">
+          <label for="capture_device">Microphone:</label>
+          <select id="capture_device" class="capture-device-select">
+            <option value="">Loading devices...</option>
+          </select>
+          <button type="button" id="refresh_devices" class="refresh-devices-btn" title="Refresh devices">🔄</button>
         </div>
+        <div class="capture-output-selection">
+          <label for="output_channel">Output Channel:</label>
+          <select id="output_channel" class="output-channel-select">
+            <option value="both" selected>Both Channels</option>
+            <option value="left">Left Channel Only</option>
+            <option value="right">Right Channel Only</option>
+            <option value="default">System Default</option>
+          </select>
+        </div>
+        <div class="capture-sample-rate">
+          <label for="capture_sample_rate">Sample Rate:</label>
+          <select id="capture_sample_rate" class="capture-sample-rate-select">
+            <option value="44100">44.1 kHz</option>
+            <option value="48000" selected>48 kHz</option>
+            <option value="96000">96 kHz</option>
+            <option value="192000">192 kHz</option>
+          </select>
+        </div>
+        <div class="capture-signal-type">
+          <label for="signal_type">Signal Type:</label>
+          <select id="signal_type" class="signal-type-select">
+            <option value="sweep" selected>Frequency Sweep</option>
+            <option value="white">White Noise</option>
+            <option value="pink">Pink Noise</option>
+          </select>
+        </div>
+        <div class="capture-sweep-controls" id="sweep_duration_container">
+          <label for="sweep_duration">Duration:</label>
+          <select id="sweep_duration" class="sweep-duration-select">
+            <option value="5">5 seconds</option>
+            <option value="10" selected>10 seconds</option>
+            <option value="15">15 seconds</option>
+            <option value="20">20 seconds</option>
+          </select>
+        </div>
+        <button type="button" id="capture_btn" class="capture-button">🎤 Start Capture</button>
+        <div id="capture_status" class="capture-status" style="display: none">
+          <div class="capture-progress">
+            <span id="capture_status_text">Ready</span>
+            <div class="capture-progress-bar" style="display: none">
+              <div class="capture-progress-fill" id="capture_progress_fill"></div>
+            </div>
+          </div>
+          <canvas id="capture_waveform" class="capture-waveform" style="display: none"></canvas>
+          <canvas id="capture_spectrum" class="capture-spectrum" style="display: none"></canvas>
+        </div>
+        <div id="capture_result" class="capture-result" style="display: none">
+          <div class="capture-result-info">
+            <span>✅ Captured response ready</span>
+            <button type="button" id="capture_clear" class="capture-clear-btn">Clear</button>
+          </div>
+          <div id="capture_plot" class="capture-plot"></div>
+        </div>
+      </div>
     </div>
 </div>`;
 }
@@ -242,77 +242,102 @@ export function generateEQDesign(): string {
   return `<!-- EQ Design -->
 <div class="section-group">
     <h3>EQ Design</h3>
-    <div class="param-grid">
-        <!-- Loss Function -->
-        <div class="param-item">
-            <label>Loss</label>
-            <select id="loss" name="loss">
-${generateOptions(LOSS_OPTIONS, "speaker-flat")}
-            </select>
-        </div>
-        <div class="param-item">
-            <label>Filters</label>
-            <input type="number" id="num_filters" name="num_filters" />
+
+    <div class="param-group-section">
+      <div class="inline-params">
+	<div class="inline-item">
+          <label>Loss</label>
+          <select id="loss" name="loss">
+	    ${generateOptions(LOSS_OPTIONS, "speaker-flat")}
+          </select>
+	</div>
+	<div class="param-item">
+          <label>Curve</label>
+          <select id="curve_name" name="curve_name">
+	    ${generateOptions(CURVE_NAME_OPTIONS, "Listening Window")}
+          </select>
+	</div>
+      </div>
+    </div>
+
+    <div class="param-group-section">
+      <div class="inline-params">
+	<div class="param-item">
+          <label>Filters</label>
+          <input type="number" id="num_filters" name="num_filters" />
         </div>
 
         <!-- Basic Settings -->
         <div class="param-item">
-            <label>Sample Rate</label>
-            <input type="number" id="sample_rate" name="sample_rate" />
+          <label>Sample Rate</label>
+          <input type="number" id="sample_rate" name="sample_rate" />
         </div>
-        <div class="param-item">
-            <label>Curve</label>
-            <select id="curve_name" name="curve_name">
-${generateOptions(CURVE_NAME_OPTIONS, "Listening Window")}
-            </select>
-        </div>
+      </div>
+    </div>
 
-        <!-- dB Range -->
-        <div class="param-item">
-            <label>Min dB</label>
-            <input type="number" id="min_db" name="min_db" />
-        </div>
-        <div class="param-item">
-            <label>Max dB</label>
-            <input type="number" id="max_db" name="max_db" />
-        </div>
+    <div class="param-group-section">
+      <div class="inline-params">
+	<div class="param-item">
+          <label>Min dB</label>
+          <input type="number" id="min_db" name="min_db" />
+	</div>
+	<div class="param-item">
+          <label>Max dB</label>
+          <input type="number" id="max_db" name="max_db" />
+	</div>
+      <div class="param-item">
+	  <label>Min Q</label>
+	  <input type="number" id="min_q" name="min_q" />
+	</div>
+	<div class="param-item">
+	  <label>Max Q</label>
+	  <input type="number" id="max_q" name="max_q" />
+	</div>
+      </div>
+    </div>
 
-        <!-- Q Range -->
-        <div class="param-item">
-            <label>Min Q</label>
-            <input type="number" id="min_q" name="min_q" />
-        </div>
-        <div class="param-item">
-            <label>Max Q</label>
-            <input type="number" id="max_q" name="max_q" />
-        </div>
+    <div class="param-group-section">
+      <div class="inline-params">
+	<div class="param-item">
+	  <label>Min Freq</label>
+	  <input type="number" id="min_freq" name="min_freq" />
+	</div>
+	<div class="param-item">
+	  <label>Max Freq</label>
+	  <input type="number" id="max_freq" name="max_freq" />
+	</div>
+      </div>
+    </div>
 
-        <!-- Frequency Range -->
-        <div class="param-item">
-            <label>Min Freq</label>
-            <input type="number" id="min_freq" name="min_freq" />
-        </div>
-        <div class="param-item">
-            <label>Max Freq</label>
-            <input type="number" id="max_freq" name="max_freq" />
-        </div>
+    <div class="param-group-section">
+      <div class="param-item">
+        <label>PEQ Model</label>
+        <select id="peq_model" name="peq_model">
+          <option value="pk">PK - All Peak Filters</option>
+          <option value="hp-pk">HP+PK - Highpass + Peaks</option>
+          <option value="hp-pk-lp">HP+PK+LP - Highpass + Peaks + Lowpass</option>
+          <option value="free-pk-free">Free+PK+Free - Flexible ends, peaks middle</option>
+          <option value="free">Free - All filters flexible</option>
+        </select>
+      </div>
+    </div>
 
-        <!-- PEQ Model Selection -->
+    <div class="param-group-section">
+      <div class="inline-params">
         <div class="param-item">
-            <label>PEQ Model</label>
-            <select id="peq_model" name="peq_model">
-                <option value="pk">PK - All Peak Filters</option>
-                <option value="hp-pk">HP+PK - Highpass + Peaks</option>
-                <option value="hp-pk-lp">HP+PK+LP - Highpass + Peaks + Lowpass</option>
-                <option value="free-pk-free">Free+PK+Free - Flexible ends, peaks middle</option>
-                <option value="free">Free - All filters flexible</option>
-            </select>
+      	  <label>Min Spacing</label>
+      	  <input type="number" id="min_spacing_oct" name="min_spacing_oct" />
         </div>
+        <div class="param-item">
+          <label>Spacing Weight</label>
+      	  <input type="number" id="spacing_weight" name="spacing_weight" />
+        </div>
+      </div>
     </div>
 
     <div class="checkbox-group" style="display: none;">
-        <!-- Hidden: deprecated in favor of PEQ model -->
-        <label><input type="checkbox" id="iir_hp_pk" name="iir_hp_pk" /> Use HP+PK Filters (deprecated)</label>
+      <!-- Hidden: deprecated in favor of PEQ model -->
+      <label><input type="checkbox" id="iir_hp_pk" name="iir_hp_pk" /> Use HP+PK Filters (deprecated)</label>
     </div>
 </div>`;
 }
@@ -358,9 +383,9 @@ export function generateOptimizationFineTuning(): string {
 
   <div class="param-group-section">
     <div class="inline-params">
-      <div class="param-item de-param"  id="strategy_param">
+      <div class="param-item de-param" id="strategy_param">
 	<label>Strategy</label>
-	  <select id="strategy" name="strategy">${generateStrategyOptions()}</select>
+	<select id="strategy" name="strategy">${generateStrategyOptions()}</select>
       </div>
       <div class="param-item de-param" id="mutation_param">
         <label>F</label>
@@ -374,46 +399,25 @@ export function generateOptimizationFineTuning(): string {
 	class="param-item adaptive-param"
 	id="adaptive_weight_f_param"
 	style="display: none"
-      >
+	>
 	<label>Adaptive F</label>
 	<input
           type="number"
           id="adaptive_weight_f"
           name="adaptive_weight_f"
-	/>
+	  />
       </div>
       <div
 	class="param-item adaptive-param"
 	id="adaptive_weight_cr_param"
 	style="display: none"
-      >
+	>
 	<label>Adaptive CR</label>
 	<input
           type="number"
           id="adaptive_weight_cr"
           name="adaptive_weight_cr"
-	/>
-      </div>
-    </div>
-  </div>
-
-  <div class="param-group-section">
-    <div class="inline-params">
-      <div class="param-item">
-	<label>Min Spacing</label>
-	<input
-          type="number"
-          id="min_spacing_oct"
-          name="min_spacing_oct"
-	/>
-      </div>
-      <div class="param-item">
-	<label>Spacing Weight</label>
-	<input
-          type="number"
-          id="spacing_weight"
-          name="spacing_weight"
-	/>
+	  />
       </div>
     </div>
   </div>
@@ -426,7 +430,7 @@ export function generateOptimizationFineTuning(): string {
           type="number"
           id="tolerance"
           name="tolerance"
-	/>
+	  />
       </div>
       <div class="param-item">
 	<label>Abs Tolerance</label>
@@ -434,7 +438,7 @@ export function generateOptimizationFineTuning(): string {
           type="number"
           id="abs_tolerance"
           name="abs_tolerance"
-	/>
+	  />
       </div>
     </div>
   </div>
@@ -443,12 +447,12 @@ export function generateOptimizationFineTuning(): string {
     <div class="inline-params">
       <div class="inline-item checkbox-item">
         <label class="checkbox-label"
-        ><input
-           type="checkbox"
-           id="refine"
-           name="refine"
-         />Enable</label
-                 >
+               ><input
+		  type="checkbox"
+		  id="refine"
+		  name="refine"
+		  />Enable</label
+			    >
       </div>
       <div class="inline-item flex-grow">
         <label>Local Optimiser</label>
@@ -456,7 +460,7 @@ export function generateOptimizationFineTuning(): string {
           id="local_algo"
           name="local_algo"
           disabled
-        >
+          >
 	  ${generateOptions(LOCAL_ALGO_OPTIONS, "cobyla")}
         </select>
       </div>
@@ -466,10 +470,10 @@ export function generateOptimizationFineTuning(): string {
   <div class="param-group-section">
     <div class="inline-params">
       <div class="inline-item checkbox-item">
-          <label class="checkbox-label"><input type="checkbox" id="smooth" name="smooth" />Enable</label>
+        <label class="checkbox-label"><input type="checkbox" id="smooth" name="smooth" />Enable</label>
       </div>
       <div class="inline-item">
-          <label>Smooth 1/N octave</label>
+        <label>Smooth 1/N octave</label>
         <input type="number" id="smooth_n" name="smooth_n"/>
       </div>
     </div>

@@ -172,62 +172,19 @@ export function generateDataAcquisition(): string {
 
     <div id="capture_inputs" class="tab-content">
       <div class="capture-controls">
-        <div class="capture-device-selection">
-          <label for="capture_device">Microphone:</label>
-          <select id="capture_device" class="capture-device-select">
-            <option value="">Loading devices...</option>
-          </select>
-          <button type="button" id="refresh_devices" class="refresh-devices-btn" title="Refresh devices">🔄</button>
+        <div class="capture-main-control">
+          <button type="button" id="capture_btn" class="capture-button-main">
+            🎤 Open Audio Capture Modal
+          </button>
+          <p class="capture-description">
+            Configure microphone settings and capture audio response measurements
+          </p>
         </div>
-        <div class="capture-output-selection">
-          <label for="output_channel">Output Channel:</label>
-          <select id="output_channel" class="output-channel-select">
-            <option value="both" selected>Both Channels</option>
-            <option value="left">Left Channel Only</option>
-            <option value="right">Right Channel Only</option>
-            <option value="default">System Default</option>
-          </select>
-        </div>
-        <div class="capture-sample-rate">
-          <label for="capture_sample_rate">Sample Rate:</label>
-          <select id="capture_sample_rate" class="capture-sample-rate-select">
-            <option value="44100">44.1 kHz</option>
-            <option value="48000" selected>48 kHz</option>
-            <option value="96000">96 kHz</option>
-            <option value="192000">192 kHz</option>
-          </select>
-        </div>
-        <div class="capture-signal-type">
-          <label for="signal_type">Signal Type:</label>
-          <select id="signal_type" class="signal-type-select">
-            <option value="sweep" selected>Frequency Sweep</option>
-            <option value="white">White Noise</option>
-            <option value="pink">Pink Noise</option>
-          </select>
-        </div>
-        <div class="capture-sweep-controls" id="sweep_duration_container">
-          <label for="sweep_duration">Duration:</label>
-          <select id="sweep_duration" class="sweep-duration-select">
-            <option value="5">5 seconds</option>
-            <option value="10" selected>10 seconds</option>
-            <option value="15">15 seconds</option>
-            <option value="20">20 seconds</option>
-          </select>
-        </div>
-        <button type="button" id="capture_btn" class="capture-button">🎤 Start Capture</button>
-        <div id="capture_status" class="capture-status" style="display: none">
-          <div class="capture-progress">
-            <span id="capture_status_text">Ready</span>
-            <div class="capture-progress-bar" style="display: none">
-              <div class="capture-progress-fill" id="capture_progress_fill"></div>
-            </div>
-          </div>
-          <canvas id="capture_waveform" class="capture-waveform" style="display: none"></canvas>
-          <canvas id="capture_spectrum" class="capture-spectrum" style="display: none"></canvas>
-        </div>
+        
+        <!-- Status area for showing captured data -->
         <div id="capture_result" class="capture-result" style="display: none">
           <div class="capture-result-info">
-            <span>✅ Captured response ready</span>
+            <span id="capture_status_text">✅ Captured response ready</span>
             <button type="button" id="capture_clear" class="capture-clear-btn">Clear</button>
           </div>
           <div id="capture_plot" class="capture-plot"></div>
@@ -583,6 +540,197 @@ export function generateBottomRow(): string {
 </div>`;
 }
 
+// Generate Capture Modal
+export function generateCaptureModal(): string {
+  return `<div id="capture_modal" class="modal capture-modal" style="display: none">
+    <div class="modal-content capture-modal-content">
+        <div class="modal-header">
+          <h3>🎤 Audio Capture</h3>
+          <button id="capture_modal_close" class="modal-close-btn">
+            &times;
+          </button>
+        </div>
+        <div class="modal-body capture-modal-body">
+          <!-- Capture Controls -->
+          <div class="capture-controls-block">
+            <div class="capture-controls-row">
+              <div class="capture-control-group">
+                <div class="label-with-badge">
+                  <label for="modal_capture_device">Input:</label>
+                  <div class="badge-group">
+                    <span id="input_channels_info" class="channel-count-badge">? ch</span>
+                    <span id="modal_capture_sample_rate" class="info-badge sample-rate-badge">48kHz</span>
+                    <span id="modal_capture_bit_depth" class="info-badge bit-depth-badge">24</span>
+                    <button id="input_routing_btn" class="routing-button" title="Configure input channel routing" style="display: none;"></button>
+                  </div>
+                </div>
+                <select id="modal_capture_device" class="capture-device-select">
+                  <option value="">Loading devices...</option>
+                </select>
+              </div>
+              
+              <div class="capture-control-group capture-volume-group">
+                <label for="modal_capture_volume">Input Gain:</label>
+                <div class="volume-slider-container">
+                  <input type="range" id="modal_capture_volume" class="volume-slider" min="0" max="100" value="70" step="1">
+                  <div class="volume-value" id="modal_capture_volume_value">70%</div>
+                </div>
+              </div>
+              
+              <div class="capture-control-group">
+                <label for="capture_calibration_file">Calibration:</label>
+                <div class="capture-calibration-inline">
+                  <input type="file" id="capture_calibration_file" accept=".csv,.txt" style="display: none">
+                  <button type="button" id="capture_calibration_btn" class="btn btn-outline btn-sm">
+                    📁 Load File
+                  </button>
+                  <button type="button" id="capture_calibration_clear" class="btn btn-outline btn-sm" style="display: none">
+                    ✕ Clear
+                  </button>
+                </div>
+              </div>
+              
+              <div class="capture-control-group">
+                <div class="label-with-badge">
+                  <label for="modal_output_device">Output:</label>
+                  <div class="badge-group">
+                    <span id="output_channels_info" class="channel-count-badge">? ch</span>
+                    <button id="output_routing_btn" class="routing-button" title="Configure output channel routing" style="display: none;"></button>
+                  </div>
+                </div>
+                <select id="modal_output_device" class="output-device-select">
+                  <option value="default" selected>System Default</option>
+                </select>
+              </div>
+              
+              <div class="capture-control-group capture-volume-group">
+                <label for="modal_output_volume">Output Gain:</label>
+                <div class="volume-slider-container">
+                  <input type="range" id="modal_output_volume" class="volume-slider" min="0" max="100" value="50" step="1">
+                  <div class="volume-value" id="modal_output_volume_value">50%</div>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Second row: Signal parameters (slim inline layout) -->
+            <div class="capture-controls-row capture-controls-row-slim">
+              <div class="capture-control-inline">
+                <label for="modal_output_channel">Channel:</label>
+                <select id="modal_output_channel" class="output-channel-select">
+                  <option value="all" selected>All Channels</option>
+                </select>
+              </div>
+              
+              <div class="capture-control-inline">
+                <label for="modal_signal_type">Signal:</label>
+                <select id="modal_signal_type" class="signal-type-select">
+                  <option value="sweep" selected>Frequency Sweep</option>
+                  <option value="white">White Noise</option>
+                  <option value="pink">Pink Noise</option>
+                </select>
+              </div>
+              
+              <div class="capture-control-inline" id="modal_sweep_duration_container">
+                <label for="modal_sweep_duration">Duration:</label>
+                <select id="modal_sweep_duration" class="sweep-duration-select">
+                  <option value="5">5 seconds</option>
+                  <option value="10" selected>10 seconds</option>
+                  <option value="15">15 seconds</option>
+                  <option value="20">20 seconds</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Graph Display with Records Sidebar -->
+          <div class="capture-main-area">
+            <!-- Records Management Sidebar -->
+            <div id="capture_records_sidebar" class="capture-records-sidebar">
+              <div class="records-header">
+                <h4>📋 Saved Records</h4>
+                <button id="records_toggle" class="records-toggle-btn" title="Toggle records panel">
+                  ◀
+                </button>
+              </div>
+              <div class="records-actions">
+                <button id="records_select_all" class="btn btn-sm btn-outline">Select All</button>
+                <button id="records_deselect_all" class="btn btn-sm btn-outline">Deselect All</button>
+                <button id="records_delete_selected" class="btn btn-sm btn-danger">🗑️ Delete</button>
+              </div>
+              <div id="capture_records_list" class="capture-records-list">
+                <!-- Records will be dynamically populated here -->
+              </div>
+            </div>
+            
+            <!-- Graph Container -->
+            <div class="capture-graph-container">
+              <canvas id="capture_modal_graph" class="capture-modal-graph"></canvas>
+              <div id="capture_modal_placeholder" class="capture-graph-placeholder">
+                <div class="capture-placeholder-content">
+                  <div class="capture-placeholder-icon">📊</div>
+                  <h4>Frequency & Phase Response Graph</h4>
+                  <p>Click "Start Capture" to begin audio measurement with phase analysis</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <!-- Bottom Controls Bar -->
+          <div class="capture-bottom-controls">
+            <div class="capture-bottom-left">
+              <!-- Phase and Smoothing Controls -->
+              <label class="capture-phase-toggle">
+                <input type="checkbox" id="capture_phase_toggle" checked>
+                <span>Show Phase</span>
+              </label>
+              <label class="capture-smoothing-control">
+                <span>Smoothing:</span>
+                <select id="capture_smoothing_select" class="capture-smoothing-select">
+                  <option value="1">1/1 octave</option>
+                  <option value="2">1/2 octave</option>
+                  <option value="3" selected>1/3 octave</option>
+                  <option value="4">1/4 octave</option>
+                  <option value="6">1/6 octave</option>
+                  <option value="8">1/8 octave</option>
+                  <option value="12">1/12 octave</option>
+                  <option value="24">1/24 octave</option>
+                </select>
+              </label>
+              <!-- Channel Display Controls -->
+              <label class="capture-channel-control">
+                <span>Show:</span>
+                <select id="capture_channel_select" class="capture-channel-select">
+                  <option value="combined" selected>Combined</option>
+                  <option value="left">Left Channel</option>
+                  <option value="right">Right Channel</option>
+                  <option value="average">L/R Average</option>
+                  <option value="all">All Channels</option>
+                </select>
+              </label>
+            </div>
+            <div class="capture-bottom-right">
+              <!-- Action Buttons -->
+              <button id="capture_modal_start" class="btn btn-primary capture-start-btn">
+                🎤 Start Capture
+              </button>
+              <button id="capture_modal_stop" class="btn btn-danger capture-stop-btn" style="display: none">
+                ⏹️ Stop Capture
+              </button>
+              <button id="capture_modal_export" class="btn btn-secondary capture-export-btn" style="display: none">
+                💾 Export CSV
+              </button>
+              <button id="capture_modal_cancel" class="btn btn-outline">
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+    </div>
+</div>`;
+}
+
 // Generate Optimization Modal
 export function generateOptimizationModal(): string {
   return `<div id="optimization_modal" class="modal" style="display: none">
@@ -641,5 +789,6 @@ export function generateAppHTML(): string {
     ${generateBottomRow()}
     <div class="audio-testing-controls audio-bar-fixed"></div>
   </div>
-  ${generateOptimizationModal()}`;
+  ${generateOptimizationModal()}
+  ${generateCaptureModal()}`;
 }

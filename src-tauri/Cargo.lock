@@ -473,7 +473,7 @@ dependencies = [
 
 [[package]]
 name = "autoeq-tauri"
-version = "0.3.53"
+version = "0.3.58"
 dependencies = [
  "autoeq",
  "csv",

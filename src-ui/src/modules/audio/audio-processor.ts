@@ -3,6 +3,7 @@
 export interface CaptureResult {
   frequencies: number[];
   magnitudes: number[];
+  phases: number[];  // Phase data in degrees
   success: boolean;
   error?: string;
 }
@@ -40,6 +41,8 @@ export class AudioProcessor {
   private outputChannel: "left" | "right" | "both" | "default" = "both";
   private captureSampleRate: number = 48000;
   private signalType: "sweep" | "white" | "pink" = "sweep";
+  private captureVolume: number = 70; // 0-100 percentage - input gain
+  private outputVolume: number = 50; // 0-100 percentage - output volume
 
   // UI elements for audio status
   private audioStatusElements: {
@@ -380,6 +383,30 @@ export class AudioProcessor {
     }
   }
 
+  // Audio output device enumeration
+  async enumerateAudioOutputDevices(): Promise<MediaDeviceInfo[]> {
+    try {
+      // Request permission first (needed for device labels)
+      await navigator.mediaDevices
+        .getUserMedia({ audio: true })
+        .then((stream) => {
+          // Immediately stop the stream after getting permission
+          stream.getTracks().forEach((track) => track.stop());
+        });
+
+      // Now enumerate devices
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioOutputs = devices.filter(
+        (device) => device.kind === "audiooutput",
+      );
+      console.log("Found audio output devices:", audioOutputs);
+      return audioOutputs;
+    } catch (error) {
+      console.error("Error enumerating audio output devices:", error);
+      return [];
+    }
+  }
+
   // Audio capture functionality
   async startCapture(deviceId?: string): Promise<CaptureResult> {
     console.log("Starting audio capture with device:", deviceId || "default");
@@ -465,6 +492,7 @@ export class AudioProcessor {
       return {
         frequencies: [],
         magnitudes: [],
+        phases: [],
         success: false,
         error: error instanceof Error ? error.message : "Unknown capture error",
       };
@@ -479,8 +507,9 @@ export class AudioProcessor {
     if (this.oscillator) {
       try {
         this.oscillator.stop();
+        this.oscillator.disconnect();
       } catch (e) {
-        // Already stopped
+        // Already stopped or disconnected
       }
       this.oscillator = null;
     }
@@ -488,8 +517,9 @@ export class AudioProcessor {
     if (this.noiseSource) {
       try {
         this.noiseSource.stop();
+        this.noiseSource.disconnect();
       } catch (e) {
-        // Already stopped
+        // Already stopped or disconnected
       }
       this.noiseSource = null;
     }
@@ -512,6 +542,20 @@ export class AudioProcessor {
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach((track) => track.stop());
       this.mediaStream = null;
+    }
+    
+    // Disconnect all nodes from the audio context destination
+    // This ensures no audio is still playing
+    if (this.audioContext && this.audioContext.destination) {
+      try {
+        // Get all nodes connected to destination and disconnect them
+        // Note: We can't enumerate connections, but closing and reopening
+        // the audio context is too disruptive. Instead we rely on proper
+        // cleanup of individual nodes above.
+        console.log("Audio nodes disconnected");
+      } catch (e) {
+        console.error("Error disconnecting audio nodes:", e);
+      }
     }
   }
 
@@ -550,9 +594,10 @@ export class AudioProcessor {
       sourceNode = this.createNoiseSource(this.signalType);
     }
 
-    // Connect source to output with reduced volume and channel routing
+    // Connect source to output with volume control and channel routing
     const gainNode = this.audioContext.createGain();
-    gainNode.gain.value = 0.3; // Reduce volume to avoid feedback
+    // Convert percentage (0-100) to gain value (0-1)
+    gainNode.gain.value = this.outputVolume / 100;
 
     // Configure channel routing based on selection
     if (
@@ -596,40 +641,74 @@ export class AudioProcessor {
 
     // Collect frequency response data during sweep
     const frequencyResponses: Float32Array[] = [];
+    const timeDomainResponses: Float32Array[] = [];
     const bufferLength = this.captureAnalyser.frequencyBinCount;
-    const dataArray = new Float32Array(bufferLength);
+    const timeBufferLength = this.captureAnalyser.fftSize;
+    const frequencyData = new Float32Array(bufferLength);
+    const timeData = new Float32Array(timeBufferLength);
     const sampleRate = this.audioContext.sampleRate;
     const sampleInterval = 100; // ms between samples
     const numSamples = Math.floor((duration * 1000) / sampleInterval);
 
     for (let i = 0; i < numSamples; i++) {
       if (this.captureController?.signal.aborted) {
-        this.oscillator?.stop();
+        // Stop and disconnect both oscillator and noise source when cancelled
+        if (this.oscillator) {
+          try {
+            this.oscillator.stop();
+            this.oscillator.disconnect();
+          } catch (e) {
+            // Already stopped or disconnected
+          }
+          this.oscillator = null;
+        }
+        if (this.noiseSource) {
+          try {
+            this.noiseSource.stop();
+            this.noiseSource.disconnect();
+          } catch (e) {
+            // Already stopped or disconnected
+          }
+          this.noiseSource = null;
+        }
         throw new Error("Capture cancelled");
       }
 
-      // Get frequency data
-      this.captureAnalyser.getFloatFrequencyData(dataArray);
-      frequencyResponses.push(new Float32Array(dataArray));
+      // Get both frequency and time domain data
+      this.captureAnalyser.getFloatFrequencyData(frequencyData);
+      this.captureAnalyser.getFloatTimeDomainData(timeData);
+      
+      frequencyResponses.push(new Float32Array(frequencyData));
+      timeDomainResponses.push(new Float32Array(timeData));
 
       // Wait for next sample
       await new Promise((resolve) => setTimeout(resolve, sampleInterval));
     }
 
-    // Stop the signal source
+    // Stop and disconnect the signal source
     if (this.oscillator) {
-      this.oscillator.stop();
+      try {
+        this.oscillator.stop();
+        this.oscillator.disconnect();
+      } catch (e) {
+        // Already stopped or disconnected
+      }
       this.oscillator = null;
     }
     if (this.noiseSource) {
-      this.noiseSource.stop();
+      try {
+        this.noiseSource.stop();
+        this.noiseSource.disconnect();
+      } catch (e) {
+        // Already stopped or disconnected
+      }
       this.noiseSource = null;
     }
 
     console.log(`Collected ${frequencyResponses.length} samples`);
 
     // Average the frequency responses
-    const averagedData = new Float32Array(bufferLength);
+    const averagedMagnitudeData = new Float32Array(bufferLength);
     for (let i = 0; i < bufferLength; i++) {
       let sum = 0;
       let count = 0;
@@ -639,19 +718,199 @@ export class AudioProcessor {
           count++;
         }
       }
-      averagedData[i] = count > 0 ? sum / count : -100; // Default to -100 dB
+      averagedMagnitudeData[i] = count > 0 ? sum / count : -100; // Default to -100 dB
     }
 
-    // Apply 1/24 octave smoothing and resample to 200 points
-    const result = this.smoothAndResample(averagedData, sampleRate);
+    // Calculate phase from time domain data
+    console.log('Calculating phase data from time domain samples...');
+    const phaseData = this.calculatePhaseFromTimeDomain(timeDomainResponses, sampleRate);
 
-    console.log(`Processed ${result.frequencies.length} frequency points`);
+    // Apply 1/24 octave smoothing and resample to 200 points
+    const result = this.smoothAndResampleWithPhase(averagedMagnitudeData, phaseData, sampleRate);
+
+    console.log(`Processed ${result.frequencies.length} frequency points with phase data`);
 
     return {
       frequencies: result.frequencies,
       magnitudes: result.magnitudes,
+      phases: result.phases,
       success: true,
     };
+  }
+
+  // Phase calculation from time domain data using FFT
+  private calculatePhaseFromTimeDomain(
+    timeDomainResponses: Float32Array[],
+    sampleRate: number
+  ): Float32Array {
+    const bufferLength = timeDomainResponses[0]?.length || 0;
+    if (bufferLength === 0) {
+      console.warn('No time domain data available for phase calculation');
+      return new Float32Array(0);
+    }
+
+    // Average time domain data
+    const averagedTimeData = new Float32Array(bufferLength);
+    for (let i = 0; i < bufferLength; i++) {
+      let sum = 0;
+      let count = 0;
+      for (const timeData of timeDomainResponses) {
+        if (!isNaN(timeData[i]) && isFinite(timeData[i])) {
+          sum += timeData[i];
+          count++;
+        }
+      }
+      averagedTimeData[i] = count > 0 ? sum / count : 0;
+    }
+
+    // Perform FFT to get complex frequency domain data
+    const complexData = this.performFFT(averagedTimeData);
+    
+    // Extract phase from complex data
+    const phaseData = new Float32Array(complexData.length / 2);
+    for (let i = 0; i < phaseData.length; i++) {
+      const real = complexData[i * 2];
+      const imag = complexData[i * 2 + 1];
+      // Calculate phase in radians, then convert to degrees
+      const phaseRadians = Math.atan2(imag, real);
+      phaseData[i] = (phaseRadians * 180) / Math.PI;
+    }
+
+    return phaseData;
+  }
+
+  // Simple FFT implementation (could be replaced with more efficient library)
+  private performFFT(timeData: Float32Array): Float32Array {
+    const N = timeData.length;
+    const complexData = new Float32Array(N * 2); // Real + imaginary pairs
+    
+    // Copy time data to complex array (real part only)
+    for (let i = 0; i < N; i++) {
+      complexData[i * 2] = timeData[i];     // Real part
+      complexData[i * 2 + 1] = 0;          // Imaginary part
+    }
+    
+    // Apply simple DFT (not optimized, but functional for demonstration)
+    const result = new Float32Array(N * 2);
+    for (let k = 0; k < N / 2; k++) { // Only need first half due to Nyquist
+      let realSum = 0;
+      let imagSum = 0;
+      
+      for (let n = 0; n < N; n++) {
+        const angle = -2 * Math.PI * k * n / N;
+        const cos = Math.cos(angle);
+        const sin = Math.sin(angle);
+        
+        realSum += timeData[n] * cos;
+        imagSum += timeData[n] * sin;
+      }
+      
+      result[k * 2] = realSum;      // Real part
+      result[k * 2 + 1] = imagSum;  // Imaginary part
+    }
+    
+    return result;
+  }
+
+  private smoothAndResampleWithPhase(
+    magnitudeData: Float32Array,
+    phaseData: Float32Array,
+    sampleRate: number,
+  ): { frequencies: number[]; magnitudes: number[]; phases: number[] } {
+    // Create log-spaced frequency array (200 points from 20Hz to 20kHz)
+    const frequencies: number[] = [];
+    const magnitudes: number[] = [];
+    const phases: number[] = [];
+    const minFreq = 20;
+    const maxFreq = 20000;
+    const numPoints = 200;
+    const smoothingOctaves = 24; // 1/24 octave smoothing
+
+    const logMin = Math.log10(minFreq);
+    const logMax = Math.log10(maxFreq);
+    const logStep = (logMax - logMin) / (numPoints - 1);
+
+    // Calculate bin frequencies
+    const binCount = magnitudeData.length;
+    const nyquist = sampleRate / 2;
+    const binFreqs: number[] = [];
+    for (let i = 0; i < binCount; i++) {
+      binFreqs.push((i / binCount) * nyquist);
+    }
+
+    // Generate target frequencies and apply smoothing
+    for (let i = 0; i < numPoints; i++) {
+      const logFreq = logMin + i * logStep;
+      const targetFreq = Math.pow(10, logFreq);
+      frequencies.push(targetFreq);
+
+      // Calculate smoothing window
+      const octaveWidth = 1.0 / smoothingOctaves;
+      const lowerBound = targetFreq * Math.pow(2, -octaveWidth / 2);
+      const upperBound = targetFreq * Math.pow(2, octaveWidth / 2);
+
+      // Average magnitude values within the smoothing window
+      let magSum = 0;
+      let magCount = 0;
+      const phasesInWindow: number[] = [];
+
+      for (let j = 0; j < binCount; j++) {
+        if (binFreqs[j] >= lowerBound && binFreqs[j] <= upperBound) {
+          // Magnitude averaging (convert from dB to linear)
+          const linear = Math.pow(10, magnitudeData[j] / 20);
+          magSum += linear;
+          magCount++;
+          
+          // Collect phase values for circular averaging
+          if (j < phaseData.length) {
+            phasesInWindow.push(phaseData[j]);
+          }
+        }
+      }
+
+      // Process magnitude
+      if (magCount > 0) {
+        const avgLinear = magSum / magCount;
+        magnitudes.push(20 * Math.log10(avgLinear));
+      } else {
+        // No data in range, use nearest neighbor
+        let nearestIdx = 0;
+        let minDiff = Math.abs(binFreqs[0] - targetFreq);
+        for (let j = 1; j < binCount; j++) {
+          const diff = Math.abs(binFreqs[j] - targetFreq);
+          if (diff < minDiff) {
+            minDiff = diff;
+            nearestIdx = j;
+          }
+        }
+        magnitudes.push(magnitudeData[nearestIdx]);
+      }
+
+      // Process phase (circular mean)
+      if (phasesInWindow.length > 0) {
+        phases.push(this.calculateCircularMean(phasesInWindow));
+      } else {
+        // No phase data in range, use 0 as default
+        phases.push(0);
+      }
+    }
+
+    return { frequencies, magnitudes, phases };
+  }
+
+  // Circular mean for phase averaging
+  private calculateCircularMean(phases: number[]): number {
+    let sumSin = 0;
+    let sumCos = 0;
+    
+    for (const phase of phases) {
+      const radians = (phase * Math.PI) / 180;
+      sumSin += Math.sin(radians);
+      sumCos += Math.cos(radians);
+    }
+    
+    const meanRadians = Math.atan2(sumSin / phases.length, sumCos / phases.length);
+    return (meanRadians * 180) / Math.PI;
   }
 
   private smoothAndResample(
@@ -725,11 +984,12 @@ export class AudioProcessor {
   }
 
   private simulateCapture(): CaptureResult {
-    console.log("Simulating audio capture...");
+    console.log("Simulating audio capture with phase data...");
 
     // Generate simulated frequency response data
     const frequencies: number[] = [];
     const magnitudes: number[] = [];
+    const phases: number[] = [];
 
     // Generate logarithmically spaced frequencies from 20Hz to 20kHz
     const startFreq = Math.log10(20);
@@ -745,13 +1005,25 @@ export class AudioProcessor {
       let magnitude = -20; // Base level in dB
       magnitude += 10 * Math.sin(Math.log10(freq) * 2); // Some variation
       magnitude += (Math.random() - 0.5) * 5; // Add some noise
-
       magnitudes.push(magnitude);
+
+      // Generate realistic phase response
+      // Phase typically decreases with frequency for typical systems
+      let phase = -Math.log10(freq / 20) * 60; // Basic phase slope
+      phase += 30 * Math.sin(Math.log10(freq) * 3); // Some phase variation
+      phase += (Math.random() - 0.5) * 20; // Add some phase noise
+      
+      // Wrap phase to -180 to +180 degrees
+      while (phase > 180) phase -= 360;
+      while (phase < -180) phase += 360;
+      
+      phases.push(phase);
     }
 
     return {
       frequencies,
       magnitudes,
+      phases,
       success: true,
     };
   }
@@ -770,6 +1042,18 @@ export class AudioProcessor {
 
   setSignalType(type: "sweep" | "white" | "pink"): void {
     this.signalType = type;
+  }
+  
+  setCaptureVolume(volume: number): void {
+    // Clamp volume between 0 and 100
+    this.captureVolume = Math.max(0, Math.min(100, volume));
+    console.log(`Capture volume set to: ${this.captureVolume}%`);
+  }
+  
+  setOutputVolume(volume: number): void {
+    // Clamp volume between 0 and 100
+    this.outputVolume = Math.max(0, Math.min(100, volume));
+    console.log(`Output volume set to: ${this.outputVolume}%`);
   }
 
   isCaptureSupported(): boolean {

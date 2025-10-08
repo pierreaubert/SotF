@@ -48,6 +48,7 @@ describe("Audio Module Exports", () => {
       success: true,
       frequencies: [100, 200, 300],
       magnitudes: [10, 20, 30],
+      phases: [0, 0, 0],
     };
 
     expect(config).toBeDefined();

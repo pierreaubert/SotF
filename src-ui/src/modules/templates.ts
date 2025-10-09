@@ -595,6 +595,8 @@ export function generateCaptureModal(): string {
                   <label for="modal_output_device">Output:</label>
                   <div class="badge-group">
                     <span id="output_channels_info" class="channel-count-badge">? ch</span>
+                    <span id="modal_output_sample_rate" class="info-badge sample-rate-badge">48kHz</span>
+                    <span id="modal_output_bit_depth" class="info-badge bit-depth-badge">24</span>
                     <button id="output_routing_btn" class="routing-button" title="Configure output channel routing" style="display: none;"></button>
                   </div>
                 </div>

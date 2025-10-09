@@ -43,6 +43,8 @@ export class AudioProcessor {
   private signalType: "sweep" | "white" | "pink" = "sweep";
   private captureVolume: number = 70; // 0-100 percentage - input gain
   private outputVolume: number = 50; // 0-100 percentage - output volume
+  private outputDeviceId: string = "default"; // Selected output device ID
+  private captureAudioElement: HTMLAudioElement | null = null; // Audio element for device routing during capture
 
   // UI elements for audio status
   private audioStatusElements: {
@@ -424,8 +426,15 @@ export class AudioProcessor {
     try {
       // Check if capture is supported
       if (!this.isCaptureSupported()) {
-        console.warn("Microphone capture not supported, using simulated data");
-        return this.simulateCapture();
+        const error = "Microphone capture is not supported by your browser. Please ensure you are using a modern browser with WebRTC support.";
+        console.error("Capture not supported:", error);
+        return {
+          frequencies: [],
+          magnitudes: [],
+          phases: [],
+          success: false,
+          error: error
+        };
       }
 
       // Recreate audio context with desired sample rate if needed
@@ -489,12 +498,29 @@ export class AudioProcessor {
     } catch (error) {
       console.error("Error during audio capture:", error);
       this.stopCapture();
+      
+      // Provide more specific error messages based on the error type
+      let errorMessage = "Unknown capture error";
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          errorMessage = "Microphone permission denied. Please allow microphone access and try again.";
+        } else if (error.name === 'NotFoundError') {
+          errorMessage = "No microphone found. Please connect a microphone and try again.";
+        } else if (error.name === 'NotReadableError') {
+          errorMessage = "Microphone is already in use by another application.";
+        } else if (error.name === 'OverconstrainedError') {
+          errorMessage = "The selected microphone settings are not supported by your device.";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+      
       return {
         frequencies: [],
         magnitudes: [],
         phases: [],
         success: false,
-        error: error instanceof Error ? error.message : "Unknown capture error",
+        error: errorMessage,
       };
     }
   }
@@ -544,6 +570,18 @@ export class AudioProcessor {
       this.mediaStream = null;
     }
     
+    // Stop and clean up the audio element used for device routing
+    if (this.captureAudioElement) {
+      try {
+        this.captureAudioElement.pause();
+        this.captureAudioElement.srcObject = null;
+        this.captureAudioElement = null;
+        console.log("Capture audio element cleaned up");
+      } catch (e) {
+        console.error("Error cleaning up capture audio element:", e);
+      }
+    }
+    
     // Disconnect all nodes from the audio context destination
     // This ensures no audio is still playing
     if (this.audioContext && this.audioContext.destination) {
@@ -568,6 +606,9 @@ export class AudioProcessor {
 
     const duration = this.sweepDuration;
     let sourceNode: AudioNode;
+    
+    // Keep track of all nodes to clean up
+    const nodesToCleanup: AudioNode[] = [];
 
     if (this.signalType === "sweep") {
       // Play frequency sweep and record response
@@ -598,6 +639,43 @@ export class AudioProcessor {
     const gainNode = this.audioContext.createGain();
     // Convert percentage (0-100) to gain value (0-1)
     gainNode.gain.value = this.outputVolume / 100;
+    nodesToCleanup.push(gainNode);
+    
+    // Create destination node that respects the selected output device
+    let finalDestination: AudioNode;
+    let mediaStreamDestination: MediaStreamAudioDestinationNode | null = null;
+    
+    if (this.outputDeviceId !== "default") {
+      // For specific output devices, we need to use MediaStreamDestination
+      // and route it through an audio element with setSinkId
+      try {
+        mediaStreamDestination = this.audioContext.createMediaStreamDestination();
+        this.captureAudioElement = new Audio();
+        this.captureAudioElement.srcObject = mediaStreamDestination.stream;
+        this.captureAudioElement.autoplay = true;
+        
+        // Try to set the output device
+        if ('setSinkId' in this.captureAudioElement) {
+          try {
+            await (this.captureAudioElement as any).setSinkId(this.outputDeviceId);
+            console.log(`Audio routed to device: ${this.outputDeviceId}`);
+          } catch (setSinkError) {
+            console.warn("Failed to set sink ID:", setSinkError);
+          }
+        } else {
+          console.warn("setSinkId not supported, using default output device");
+        }
+        
+        finalDestination = mediaStreamDestination;
+        nodesToCleanup.push(mediaStreamDestination);
+      } catch (error) {
+        console.error("Failed to set output device, falling back to default:", error);
+        finalDestination = this.audioContext.destination;
+      }
+    } else {
+      // Use default output device
+      finalDestination = this.audioContext.destination;
+    }
 
     // Configure channel routing based on selection
     if (
@@ -607,6 +685,7 @@ export class AudioProcessor {
     ) {
       // Use a ChannelMergerNode to control which channel gets the signal
       const merger = this.audioContext.createChannelMerger(2);
+      nodesToCleanup.push(merger);
 
       if (this.outputChannel === "left") {
         // Connect to left channel only (input 0 of merger)
@@ -619,17 +698,18 @@ export class AudioProcessor {
       } else if (this.outputChannel === "both") {
         // Connect to both channels
         const splitter = this.audioContext.createChannelSplitter(2);
+        nodesToCleanup.push(splitter);
         sourceNode.connect(gainNode);
         gainNode.connect(splitter);
         splitter.connect(merger, 0, 0); // left to left
         splitter.connect(merger, 0, 1); // left to right (mono to stereo)
       }
 
-      merger.connect(this.audioContext.destination);
+      merger.connect(finalDestination);
     } else {
       // Default: connect directly
       sourceNode.connect(gainNode);
-      gainNode.connect(this.audioContext.destination);
+      gainNode.connect(finalDestination);
     }
 
     // Start the signal
@@ -671,6 +751,24 @@ export class AudioProcessor {
           }
           this.noiseSource = null;
         }
+        // Clean up all audio nodes
+        for (const node of nodesToCleanup) {
+          try {
+            node.disconnect();
+          } catch (e) {
+            // Already disconnected
+          }
+        }
+        // Clean up audio element when cancelled
+        if (this.captureAudioElement) {
+          try {
+            this.captureAudioElement.pause();
+            this.captureAudioElement.srcObject = null;
+            this.captureAudioElement = null;
+          } catch (e) {
+            // Already cleaned up
+          }
+        }
         throw new Error("Capture cancelled");
       }
 
@@ -704,6 +802,28 @@ export class AudioProcessor {
       }
       this.noiseSource = null;
     }
+    
+    // Disconnect all audio nodes created during capture
+    console.log(`Disconnecting ${nodesToCleanup.length} audio nodes...`);
+    for (const node of nodesToCleanup) {
+      try {
+        node.disconnect();
+      } catch (e) {
+        // Already disconnected
+      }
+    }
+    
+    // Clean up the audio element used for device routing
+    if (this.captureAudioElement) {
+      try {
+        this.captureAudioElement.pause();
+        this.captureAudioElement.srcObject = null;
+        this.captureAudioElement = null;
+        console.log("Capture audio element stopped and cleaned up after measurement");
+      } catch (e) {
+        console.error("Error stopping capture audio element:", e);
+      }
+    }
 
     console.log(`Collected ${frequencyResponses.length} samples`);
 
@@ -725,7 +845,7 @@ export class AudioProcessor {
     console.log('Calculating phase data from time domain samples...');
     const phaseData = this.calculatePhaseFromTimeDomain(timeDomainResponses, sampleRate);
 
-    // Apply 1/24 octave smoothing and resample to 200 points
+    // Apply 1/24 octave smoothing and resample to 1000 points for high resolution
     const result = this.smoothAndResampleWithPhase(averagedMagnitudeData, phaseData, sampleRate);
 
     console.log(`Processed ${result.frequencies.length} frequency points with phase data`);
@@ -817,13 +937,13 @@ export class AudioProcessor {
     phaseData: Float32Array,
     sampleRate: number,
   ): { frequencies: number[]; magnitudes: number[]; phases: number[] } {
-    // Create log-spaced frequency array (200 points from 20Hz to 20kHz)
+    // Create log-spaced frequency array (1000 points from 20Hz to 20kHz for high resolution)
     const frequencies: number[] = [];
     const magnitudes: number[] = [];
     const phases: number[] = [];
     const minFreq = 20;
     const maxFreq = 20000;
-    const numPoints = 200;
+    const numPoints = 1000;
     const smoothingOctaves = 24; // 1/24 octave smoothing
 
     const logMin = Math.log10(minFreq);
@@ -917,12 +1037,12 @@ export class AudioProcessor {
     data: Float32Array,
     sampleRate: number,
   ): { frequencies: number[]; magnitudes: number[] } {
-    // Create log-spaced frequency array (200 points from 20Hz to 20kHz)
+    // Create log-spaced frequency array (1000 points from 20Hz to 20kHz for high resolution)
     const frequencies: number[] = [];
     const magnitudes: number[] = [];
     const minFreq = 20;
     const maxFreq = 20000;
-    const numPoints = 200;
+    const numPoints = 1000;
     const smoothingOctaves = 24; // 1/24 octave smoothing
 
     const logMin = Math.log10(minFreq);
@@ -983,50 +1103,6 @@ export class AudioProcessor {
     return { frequencies, magnitudes };
   }
 
-  private simulateCapture(): CaptureResult {
-    console.log("Simulating audio capture with phase data...");
-
-    // Generate simulated frequency response data
-    const frequencies: number[] = [];
-    const magnitudes: number[] = [];
-    const phases: number[] = [];
-
-    // Generate logarithmically spaced frequencies from 20Hz to 20kHz
-    const startFreq = Math.log10(20);
-    const endFreq = Math.log10(20000);
-    const numPoints = 200;
-
-    for (let i = 0; i < numPoints; i++) {
-      const logFreq = startFreq + (i / (numPoints - 1)) * (endFreq - startFreq);
-      const freq = Math.pow(10, logFreq);
-      frequencies.push(freq);
-
-      // Generate a realistic-looking frequency response with some variation
-      let magnitude = -20; // Base level in dB
-      magnitude += 10 * Math.sin(Math.log10(freq) * 2); // Some variation
-      magnitude += (Math.random() - 0.5) * 5; // Add some noise
-      magnitudes.push(magnitude);
-
-      // Generate realistic phase response
-      // Phase typically decreases with frequency for typical systems
-      let phase = -Math.log10(freq / 20) * 60; // Basic phase slope
-      phase += 30 * Math.sin(Math.log10(freq) * 3); // Some phase variation
-      phase += (Math.random() - 0.5) * 20; // Add some phase noise
-      
-      // Wrap phase to -180 to +180 degrees
-      while (phase > 180) phase -= 360;
-      while (phase < -180) phase += 360;
-      
-      phases.push(phase);
-    }
-
-    return {
-      frequencies,
-      magnitudes,
-      phases,
-      success: true,
-    };
-  }
 
   setSweepDuration(duration: number): void {
     this.sweepDuration = duration;
@@ -1054,6 +1130,15 @@ export class AudioProcessor {
     // Clamp volume between 0 and 100
     this.outputVolume = Math.max(0, Math.min(100, volume));
     console.log(`Output volume set to: ${this.outputVolume}%`);
+  }
+  
+  setOutputDevice(deviceId: string): void {
+    this.outputDeviceId = deviceId || "default";
+    console.log(`Output device set to: ${this.outputDeviceId}`);
+  }
+  
+  getOutputDevice(): string {
+    return this.outputDeviceId;
   }
 
   isCaptureSupported(): boolean {

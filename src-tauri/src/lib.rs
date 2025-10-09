@@ -11,6 +11,9 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{AppHandle, Emitter, State};
 
+mod audio;
+use audio::SharedAudioState;
+
 #[cfg(test)]
 mod tests;
 
@@ -1153,6 +1156,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(CancellationState::new())
+        .manage(SharedAudioState::default())
         .invoke_handler(tauri::generate_handler![
             greet,
             run_optimization,
@@ -1164,7 +1168,11 @@ pub fn run() {
             generate_plot_spin,
             generate_plot_spin_details,
             generate_plot_spin_tonal,
-            exit_app
+            exit_app,
+            audio::get_audio_devices,
+            audio::set_audio_device,
+            audio::get_audio_config,
+            audio::get_device_properties
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

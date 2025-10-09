@@ -52,6 +52,8 @@ export class AudioPlayer {
     { frequency: 10000, q: 1.0, gain: 0, enabled: true },
   ];
   private eqEnabled: boolean = true;
+  private outputDeviceId: string = "default"; // Selected output device ID
+  private audioElement: HTMLAudioElement | null = null; // For device routing
 
   // Frequency analyzer
   private analyserNode: AnalyserNode | null = null;
@@ -847,11 +849,45 @@ export class AudioPlayer {
 
     // Connect to gain and analyzer
     currentNode.connect(this.gainNode);
+    
+    // Handle output device routing
+    let finalDestination: AudioNode;
+    
+    if (this.outputDeviceId !== "default") {
+      // For specific output devices, use MediaStreamDestination + Audio element
+      try {
+        const destination = this.audioContext.createMediaStreamDestination();
+        
+        // Create or reuse audio element
+        if (!this.audioElement) {
+          this.audioElement = new Audio();
+          this.audioElement.autoplay = true;
+        }
+        
+        this.audioElement.srcObject = destination.stream;
+        
+        // Set the output device
+        if ('setSinkId' in this.audioElement) {
+          (this.audioElement as any).setSinkId(this.outputDeviceId).catch((error: any) => {
+            console.warn("Failed to set audio element sink ID:", error);
+          });
+        }
+        
+        finalDestination = destination;
+      } catch (error) {
+        console.error("Failed to set up device routing, using default:", error);
+        finalDestination = this.audioContext.destination;
+      }
+    } else {
+      // Use default output device
+      finalDestination = this.audioContext.destination;
+    }
+    
     if (this.analyserNode) {
       this.gainNode.connect(this.analyserNode);
-      this.analyserNode.connect(this.audioContext.destination);
+      this.analyserNode.connect(finalDestination);
     } else {
-      this.gainNode.connect(this.audioContext.destination);
+      this.gainNode.connect(finalDestination);
     }
   }
 
@@ -909,6 +945,23 @@ export class AudioPlayer {
 
     console.log(`EQ ${enabled ? "enabled" : "disabled"}`);
     this.callbacks.onEQToggle?.(enabled);
+  }
+  
+  // Set output device for audio playback
+  setOutputDevice(deviceId: string): void {
+    this.outputDeviceId = deviceId || "default";
+    console.log(`Audio player output device set to: ${this.outputDeviceId}`);
+    
+    // If we have an audio element, update its sink ID
+    if (this.audioElement && 'setSinkId' in this.audioElement) {
+      (this.audioElement as any).setSinkId(this.outputDeviceId).catch((error: any) => {
+        console.warn("Failed to set audio element sink ID:", error);
+      });
+    }
+  }
+  
+  getOutputDevice(): string {
+    return this.outputDeviceId;
   }
 
   // Update EQ info display

@@ -87,6 +87,8 @@ export class UIManager {
   private modalSweepDuration: HTMLSelectElement | null = null;
   private modalCaptureSampleRate: HTMLElement | null = null;
   private modalCaptureBitDepth: HTMLElement | null = null;
+  private modalOutputSampleRate: HTMLElement | null = null;
+  private modalOutputBitDepth: HTMLElement | null = null;
   private modalSweepDurationContainer: HTMLElement | null = null;
   private capturePhaseToggle: HTMLInputElement | null = null;
   private captureSmoothingSelect: HTMLSelectElement | null = null;
@@ -115,6 +117,9 @@ export class UIManager {
   // Volume state (0-100)
   private captureVolume: number = 70;
   private outputVolume: number = 50;
+  
+  // Output device change callback
+  private outputDeviceChangeCallback: ((deviceId: string) => void) | null = null;
 
   // Capture state
   private captureGraphRenderer: any = null; // Will be imported dynamically
@@ -390,6 +395,12 @@ export class UIManager {
     this.modalCaptureBitDepth = document.getElementById(
       "modal_capture_bit_depth",
     ) as HTMLElement;
+    this.modalOutputSampleRate = document.getElementById(
+      "modal_output_sample_rate",
+    ) as HTMLElement;
+    this.modalOutputBitDepth = document.getElementById(
+      "modal_output_bit_depth",
+    ) as HTMLElement;
     this.modalSweepDurationContainer = document.getElementById(
       "modal_sweep_duration_container",
     );
@@ -647,6 +658,11 @@ export class UIManager {
       
       // Update output device channel info
       await this.updateOutputDeviceInfo();
+      
+      // Notify audio player about output device change
+      if (this.outputDeviceChangeCallback) {
+        this.outputDeviceChangeCallback(deviceId);
+      }
     });
     
     // Volume slider handlers
@@ -796,7 +812,7 @@ export class UIManager {
     try {
       const { CaptureGraphRenderer } = await import("./audio/capture-graph");
       
-      // Re-apply smoothing with new octave fraction
+      // Re-apply smoothing with new octave fraction to main data
       const smoothedMagnitudes = CaptureGraphRenderer.applySmoothing(
         this.currentCaptureData.frequencies,
         this.currentCaptureData.rawMagnitudes,
@@ -816,14 +832,67 @@ export class UIManager {
       this.currentCaptureData.smoothedMagnitudes = smoothedMagnitudes;
       this.currentCaptureData.smoothedPhase = smoothedPhase;
       
-      // Re-render the graph
+      // Re-smooth channel-specific data if it exists
+      if (this.currentCaptureData.channelData) {
+        // Left channel
+        if (this.currentCaptureData.channelData.left) {
+          this.currentCaptureData.channelData.left.smoothedMagnitudes = CaptureGraphRenderer.applySmoothing(
+            this.currentCaptureData.frequencies,
+            this.currentCaptureData.channelData.left.rawMagnitudes,
+            octaveFraction
+          );
+          if (this.currentCaptureData.channelData.left.rawPhase && this.currentCaptureData.channelData.left.rawPhase.length > 0) {
+            this.currentCaptureData.channelData.left.smoothedPhase = CaptureGraphRenderer.applyPhaseSmoothing(
+              this.currentCaptureData.frequencies,
+              this.currentCaptureData.channelData.left.rawPhase,
+              octaveFraction
+            );
+          }
+        }
+        
+        // Right channel
+        if (this.currentCaptureData.channelData.right) {
+          this.currentCaptureData.channelData.right.smoothedMagnitudes = CaptureGraphRenderer.applySmoothing(
+            this.currentCaptureData.frequencies,
+            this.currentCaptureData.channelData.right.rawMagnitudes,
+            octaveFraction
+          );
+          if (this.currentCaptureData.channelData.right.rawPhase && this.currentCaptureData.channelData.right.rawPhase.length > 0) {
+            this.currentCaptureData.channelData.right.smoothedPhase = CaptureGraphRenderer.applyPhaseSmoothing(
+              this.currentCaptureData.frequencies,
+              this.currentCaptureData.channelData.right.rawPhase,
+              octaveFraction
+            );
+          }
+        }
+        
+        // Average channel
+        if (this.currentCaptureData.channelData.average) {
+          this.currentCaptureData.channelData.average.smoothedMagnitudes = CaptureGraphRenderer.applySmoothing(
+            this.currentCaptureData.frequencies,
+            this.currentCaptureData.channelData.average.rawMagnitudes,
+            octaveFraction
+          );
+          if (this.currentCaptureData.channelData.average.rawPhase && this.currentCaptureData.channelData.average.rawPhase.length > 0) {
+            this.currentCaptureData.channelData.average.smoothedPhase = CaptureGraphRenderer.applyPhaseSmoothing(
+              this.currentCaptureData.frequencies,
+              this.currentCaptureData.channelData.average.rawPhase,
+              octaveFraction
+            );
+          }
+        }
+      }
+      
+      // Re-render the graph with updated channel data
       if (this.captureGraphRenderer) {
         this.captureGraphRenderer.renderGraph({
           frequencies: this.currentCaptureData.frequencies,
           rawMagnitudes: this.currentCaptureData.rawMagnitudes,
           smoothedMagnitudes: this.currentCaptureData.smoothedMagnitudes,
           rawPhase: this.currentCaptureData.rawPhase,
-          smoothedPhase: this.currentCaptureData.smoothedPhase
+          smoothedPhase: this.currentCaptureData.smoothedPhase,
+          channelData: this.currentCaptureData.channelData,
+          outputChannel: this.currentCaptureData.outputChannel
         });
       }
     } catch (error) {
@@ -832,13 +901,16 @@ export class UIManager {
   }
 
   private async onChannelDisplayChange(): Promise<void> {
-    if (!this.captureChannelSelect || !this.captureGraphRenderer) return;
+    if (!this.captureChannelSelect || !this.captureGraphRenderer) {
+      console.warn('Channel select or graph renderer not available');
+      return;
+    }
     
     const selectedDisplay = this.captureChannelSelect.value;
     console.log(`Channel display changed to: ${selectedDisplay}`);
     
     try {
-      // Handle special cases first
+      // Handle special cases first (these don't require currentCaptureData)
       if (selectedDisplay === 'lr_sum') {
         await this.displayLRSum();
         return;
@@ -849,64 +921,69 @@ export class UIManager {
         return;
       }
       
-      // Handle specific capture selection
+      // Handle specific capture selection (these don't require currentCaptureData)
       if (selectedDisplay.startsWith('capture_')) {
         const captureId = selectedDisplay.replace('capture_', '');
+        console.log(`Loading stored capture: ${captureId}`);
         await this.displayStoredCapture(captureId);
         return;
       }
       
-      // Handle current capture with channel visibility (backward compatibility)
+      // For other options, we need current capture data
+      if (!this.currentCaptureData) {
+        console.warn('No current capture data available for this display option');
+        this.captureGraphRenderer.renderPlaceholder();
+        return;
+      }
+      
+      // Handle current capture with channel visibility
       if (selectedDisplay === 'current') {
+        console.log('Showing current capture (combined)');
         // Show current capture with combined channel
         this.captureGraphRenderer.setChannelVisibility('combined', true);
         this.captureGraphRenderer.setChannelVisibility('left', false);
         this.captureGraphRenderer.setChannelVisibility('right', false);
         this.captureGraphRenderer.setChannelVisibility('average', false);
+      } else if (selectedDisplay === 'average') {
+        console.log('Showing average channel');
+        this.captureGraphRenderer.setChannelVisibility('combined', false);
+        this.captureGraphRenderer.setChannelVisibility('left', false);
+        this.captureGraphRenderer.setChannelVisibility('right', false);
+        this.captureGraphRenderer.setChannelVisibility('average', true);
+      } else if (selectedDisplay === 'left') {
+        console.log('Showing left channel');
+        this.captureGraphRenderer.setChannelVisibility('combined', false);
+        this.captureGraphRenderer.setChannelVisibility('left', true);
+        this.captureGraphRenderer.setChannelVisibility('right', false);
+        this.captureGraphRenderer.setChannelVisibility('average', false);
+      } else if (selectedDisplay === 'right') {
+        console.log('Showing right channel');
+        this.captureGraphRenderer.setChannelVisibility('combined', false);
+        this.captureGraphRenderer.setChannelVisibility('left', false);
+        this.captureGraphRenderer.setChannelVisibility('right', true);
+        this.captureGraphRenderer.setChannelVisibility('average', false);
+      } else if (selectedDisplay === 'all') {
+        console.log('Showing all channels');
+        this.captureGraphRenderer.setChannelVisibility('combined', true);
+        this.captureGraphRenderer.setChannelVisibility('left', true);
+        this.captureGraphRenderer.setChannelVisibility('right', true);
+        this.captureGraphRenderer.setChannelVisibility('average', true);
       } else {
-        // Handle left, right, average, all options for current capture
-        switch (selectedDisplay) {
-          case 'left':
-            this.captureGraphRenderer.setChannelVisibility('combined', false);
-            this.captureGraphRenderer.setChannelVisibility('left', true);
-            this.captureGraphRenderer.setChannelVisibility('right', false);
-            this.captureGraphRenderer.setChannelVisibility('average', false);
-            break;
-          case 'right':
-            this.captureGraphRenderer.setChannelVisibility('combined', false);
-            this.captureGraphRenderer.setChannelVisibility('left', false);
-            this.captureGraphRenderer.setChannelVisibility('right', true);
-            this.captureGraphRenderer.setChannelVisibility('average', false);
-            break;
-          case 'average':
-            this.captureGraphRenderer.setChannelVisibility('combined', false);
-            this.captureGraphRenderer.setChannelVisibility('left', false);
-            this.captureGraphRenderer.setChannelVisibility('right', false);
-            this.captureGraphRenderer.setChannelVisibility('average', true);
-            break;
-          case 'all':
-            this.captureGraphRenderer.setChannelVisibility('combined', true);
-            this.captureGraphRenderer.setChannelVisibility('left', true);
-            this.captureGraphRenderer.setChannelVisibility('right', true);
-            this.captureGraphRenderer.setChannelVisibility('average', true);
-            break;
-        }
+        console.warn(`Unknown display option: ${selectedDisplay}`);
+        return;
       }
       
-      // Re-render current data if available
-      if (this.currentCaptureData) {
-        this.captureGraphRenderer.renderGraph({
-          frequencies: this.currentCaptureData.frequencies,
-          rawMagnitudes: this.currentCaptureData.rawMagnitudes,
-          smoothedMagnitudes: this.currentCaptureData.smoothedMagnitudes,
-          rawPhase: this.currentCaptureData.rawPhase,
-          smoothedPhase: this.currentCaptureData.smoothedPhase,
-          channelData: this.currentCaptureData.channelData,
-          outputChannel: this.currentCaptureData.outputChannel
-        });
-      } else {
-        this.captureGraphRenderer.renderPlaceholder();
-      }
+      // Re-render current data
+      console.log('Rendering graph with channelData:', !!this.currentCaptureData.channelData);
+      this.captureGraphRenderer.renderGraph({
+        frequencies: this.currentCaptureData.frequencies,
+        rawMagnitudes: this.currentCaptureData.rawMagnitudes,
+        smoothedMagnitudes: this.currentCaptureData.smoothedMagnitudes,
+        rawPhase: this.currentCaptureData.rawPhase,
+        smoothedPhase: this.currentCaptureData.smoothedPhase,
+        channelData: this.currentCaptureData.channelData,
+        outputChannel: this.currentCaptureData.outputChannel
+      });
     } catch (error) {
       console.error('Error changing channel display:', error);
     }
@@ -1339,18 +1416,28 @@ export class UIManager {
     // Get available captures from storage
     const captureOptions = await this.getAvailableCaptureOptions();
     
-    // Always add the current capture as "Current" option
-    const currentOption = document.createElement('option');
-    currentOption.value = 'current';
-    currentOption.textContent = `Current ${this.getChannelDisplayName(outputChannel)}`;
-    this.captureChannelSelect.appendChild(currentOption);
+    // Always add the current capture as "Current" option if we have current data
+    if (this.currentCaptureData) {
+      const currentOption = document.createElement('option');
+      currentOption.value = 'current';
+      currentOption.textContent = `Current${this.getChannelDisplayName(outputChannel)}`;
+      this.captureChannelSelect.appendChild(currentOption);
+    }
     
-    // Add "Combined (All)" option if multiple captures exist
-    if (captureOptions.allCaptures.length > 1) {
-      const combinedAllOption = document.createElement('option');
-      combinedAllOption.value = 'combined_all';
-      combinedAllOption.textContent = `Combined (All ${captureOptions.allCaptures.length} captures)`;
-      this.captureChannelSelect.appendChild(combinedAllOption);
+    // Add "Average" option for current capture if it's stereo
+    if (this.currentCaptureData && this.currentCaptureData.channelData?.average) {
+      const avgOption = document.createElement('option');
+      avgOption.value = 'average';
+      avgOption.textContent = 'Average';
+      this.captureChannelSelect.appendChild(avgOption);
+    }
+    
+    // Add separator before stored captures if we have any
+    if (captureOptions.allCaptures.length > 0) {
+      const separator = document.createElement('option');
+      separator.disabled = true;
+      separator.textContent = '─────────────────';
+      this.captureChannelSelect.appendChild(separator);
     }
     
     // Add "L+R Average" option if both left and right channel captures exist
@@ -1361,15 +1448,17 @@ export class UIManager {
       this.captureChannelSelect.appendChild(lrAvgOption);
     }
     
-    // Add individual stored captures grouped by channel
+    // Add "Combined (All)" option if multiple captures exist
+    if (captureOptions.allCaptures.length > 1) {
+      const combinedAllOption = document.createElement('option');
+      combinedAllOption.value = 'combined_all';
+      combinedAllOption.textContent = `Combined (All ${captureOptions.allCaptures.length} captures)`;
+      this.captureChannelSelect.appendChild(combinedAllOption);
+    }
+    
+    // Add individual stored captures
     if (captureOptions.allCaptures.length > 0) {
-      // Add separator
-      const separator = document.createElement('option');
-      separator.disabled = true;
-      separator.textContent = '─────────────────';
-      this.captureChannelSelect.appendChild(separator);
-      
-      // Add each capture
+      // Add each capture with numbering
       const selectElement = this.captureChannelSelect; // Store reference for forEach
       captureOptions.allCaptures.forEach((capture, index) => {
         const option = document.createElement('option');
@@ -1379,34 +1468,6 @@ export class UIManager {
       });
     }
     
-    // Add channel-specific options based on current output channel (for backward compatibility)
-    if (outputChannel === 'both' || outputChannel === 'default') {
-      const separator2 = document.createElement('option');
-      separator2.disabled = true;
-      separator2.textContent = '─────────────────';
-      this.captureChannelSelect.appendChild(separator2);
-      
-      const leftOption = document.createElement('option');
-      leftOption.value = 'left';
-      leftOption.textContent = 'Left Channel (Current)';
-      this.captureChannelSelect.appendChild(leftOption);
-      
-      const rightOption = document.createElement('option');
-      rightOption.value = 'right';
-      rightOption.textContent = 'Right Channel (Current)';
-      this.captureChannelSelect.appendChild(rightOption);
-      
-      const averageOption = document.createElement('option');
-      averageOption.value = 'average';
-      averageOption.textContent = 'L/R Average (Current)';
-      this.captureChannelSelect.appendChild(averageOption);
-      
-      const allOption = document.createElement('option');
-      allOption.value = 'all';
-      allOption.textContent = 'All Channels (Current)';
-      this.captureChannelSelect.appendChild(allOption);
-    }
-    
     // Set default selection
     this.captureChannelSelect.value = 'current';
     console.log(`Updated channel options for output: ${outputChannel}, found ${captureOptions.allCaptures.length} stored captures`);
@@ -1414,10 +1475,11 @@ export class UIManager {
   
   private getChannelDisplayName(outputChannel: string): string {
     switch (outputChannel) {
-      case 'left': return '(Left)';
-      case 'right': return '(Right)';
-      case 'both': return '(Stereo)';
-      default: return '';
+      case 'left': return ' (Left)';
+      case 'right': return ' (Right)';
+      case 'both': return ' (Stereo)';
+      case 'default': return '';
+      default: return ` (${outputChannel.charAt(0).toUpperCase() + outputChannel.slice(1)})`;
     }
   }
 
@@ -1482,7 +1544,7 @@ export class UIManager {
       const deviceSampleRate = audioContext.sampleRate;
       audioContext.close(); // Clean up
       
-      console.log(`Device sample rate: ${deviceSampleRate} Hz`);
+      console.log(`Input device sample rate: ${deviceSampleRate} Hz`);
       
       // Format sample rate for badge display
       let sampleRateText = '';
@@ -1502,7 +1564,7 @@ export class UIManager {
       }
       
     } catch (error) {
-      console.warn('Could not determine device sample rate:', error);
+      console.warn('Could not determine input device sample rate:', error);
       // Fall back to a common default
       if (this.modalCaptureSampleRate) {
         this.modalCaptureSampleRate.textContent = '48kHz';
@@ -1513,15 +1575,92 @@ export class UIManager {
     }
   }
   
+  private async updateOutputSampleRate(): Promise<void> {
+    if (!this.modalOutputSampleRate) return;
+    
+    try {
+      // Get the audio context to check the current sample rate
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const deviceSampleRate = audioContext.sampleRate;
+      audioContext.close(); // Clean up
+      
+      console.log(`Output device sample rate: ${deviceSampleRate} Hz`);
+      
+      // Format sample rate for badge display
+      let sampleRateText = '';
+      if (deviceSampleRate >= 1000) {
+        const khz = deviceSampleRate / 1000;
+        sampleRateText = khz % 1 === 0 ? `${khz}kHz` : `${khz.toFixed(1)}kHz`;
+      } else {
+        sampleRateText = `${deviceSampleRate}Hz`;
+      }
+      
+      // Update the sample rate badge
+      this.modalOutputSampleRate.textContent = sampleRateText;
+      
+      // Update bit depth badge
+      if (this.modalOutputBitDepth) {
+        this.modalOutputBitDepth.textContent = '24';
+      }
+      
+    } catch (error) {
+      console.warn('Could not determine output device sample rate:', error);
+      // Fall back to a common default
+      if (this.modalOutputSampleRate) {
+        this.modalOutputSampleRate.textContent = '48kHz';
+      }
+      if (this.modalOutputBitDepth) {
+        this.modalOutputBitDepth.textContent = '24';
+      }
+    }
+  }
+  
   private async updateOutputChannelOptions(): Promise<void> {
     if (!this.modalOutputChannel || !this.modalCaptureDevice) return;
     
     try {
       const deviceId = this.modalCaptureDevice.value;
       
-      // Use the new audio-device module for detection
-      const { detectDeviceCapabilities } = await import('./audio/audio-device');
-      const deviceInfo = await detectDeviceCapabilities(deviceId);
+      // Use the device manager if available, otherwise create a new one
+      let deviceManager = (this as any).deviceManager;
+      if (!deviceManager) {
+        const { AudioDeviceManager } = await import('./audio/device-manager');
+        deviceManager = new AudioDeviceManager(true);
+        await deviceManager.enumerateDevices();
+        (this as any).deviceManager = deviceManager;
+      }
+      
+      // Get device details from the manager
+      let deviceInfo: any = null;
+      
+      if (deviceId === 'default') {
+        // Find the default device
+        const defaultDevice = deviceManager.findBestDevice('input', { preferDefault: true });
+        if (defaultDevice) {
+          deviceInfo = {
+            inputChannels: defaultDevice.channels,
+            outputChannels: defaultDevice.channels, // Assume same for input/output
+            deviceLabel: defaultDevice.name
+          };
+        }
+      } else {
+        // Get specific device details
+        try {
+          const details = await deviceManager.getDeviceDetails(deviceId);
+          const device = Array.from(deviceManager.unifiedDevices.values()).find(d => d.deviceId === deviceId);
+          if (device) {
+            deviceInfo = {
+              inputChannels: device.channels,
+              outputChannels: device.channels,
+              deviceLabel: device.name
+            };
+          }
+        } catch (e) {
+          // Fallback to WebAudio detection
+          const { detectDeviceCapabilities } = await import('./audio/audio-device');
+          deviceInfo = await detectDeviceCapabilities(deviceId);
+        }
+      }
       
       if (!deviceInfo) {
         this.setDeviceStatus('error', 'Device not found or cannot be accessed');
@@ -1576,6 +1715,9 @@ export class UIManager {
           this.outputChannelsInfo.textContent = `${deviceInfo.outputChannels} ch`;
           this.outputChannelsInfo.classList.add('detected');
         }
+        
+        // Update output sample rate and bit depth badges
+        await this.updateOutputSampleRate();
         
         // Update output routing matrix
         if (this.outputRoutingMatrix) {
@@ -3007,34 +3149,35 @@ export class UIManager {
     if (!this.modalCaptureDevice || !this.modalOutputDevice) return;
 
     try {
-      const { AudioProcessor } = await import("./audio/audio-processor");
-      const audioProcessor = new AudioProcessor();
+      // Use the new enhanced device manager
+      const { AudioDeviceManager } = await import("./audio/device-manager");
+      const deviceManager = new AudioDeviceManager(true); // Prefer cpal devices
       
-      // Populate input devices
-      const inputDevices = await audioProcessor.enumerateAudioDevices();
-
+      // Enumerate all devices from both cpal and WebAudio
+      const devices = await deviceManager.enumerateDevices();
+      
       // Clear existing input options
       this.modalCaptureDevice.innerHTML = "";
 
       // Add default input option
       const defaultInputOption = document.createElement("option");
       defaultInputOption.value = "default";
-      defaultInputOption.textContent = "Default Microphone";
+      defaultInputOption.textContent = "System Default";
       this.modalCaptureDevice.appendChild(defaultInputOption);
 
       // Add all available input devices
-      inputDevices.forEach((device: MediaDeviceInfo) => {
+      const inputList = deviceManager.getDeviceList('input');
+      inputList.forEach(device => {
         const option = document.createElement("option");
-        option.value = device.deviceId;
-        option.textContent =
-          device.label || `Microphone ${device.deviceId.substr(0, 8)}`;
+        option.value = device.value;
+        option.textContent = device.label;
+        if (device.info) {
+          option.title = device.info; // Show extra info as tooltip
+        }
         this.modalCaptureDevice?.appendChild(option);
       });
 
-      console.log(`Populated ${inputDevices.length} modal audio input devices`);
-      
-      // Populate output devices
-      const outputDevices = await audioProcessor.enumerateAudioOutputDevices();
+      console.log(`Populated ${devices.input.length} input devices (cpal + WebAudio)`);
       
       // Clear existing output options
       this.modalOutputDevice.innerHTML = "";
@@ -3046,17 +3189,21 @@ export class UIManager {
       this.modalOutputDevice.appendChild(defaultOutputOption);
       
       // Add all available output devices
-      outputDevices.forEach((device: MediaDeviceInfo) => {
+      const outputList = deviceManager.getDeviceList('output');
+      outputList.forEach(device => {
         const option = document.createElement("option");
-        option.value = device.deviceId;
-        option.textContent =
-          device.label || `Speaker ${device.deviceId.substr(0, 8)}`;
+        option.value = device.value;
+        option.textContent = device.label;
+        if (device.info) {
+          option.title = device.info; // Show extra info as tooltip
+        }
         this.modalOutputDevice?.appendChild(option);
       });
       
-      console.log(`Populated ${outputDevices.length} modal audio output devices`);
+      console.log(`Populated ${devices.output.length} output devices (cpal + WebAudio)`);
       
-      audioProcessor.destroy();
+      // Store device manager for later use
+      (this as any).deviceManager = deviceManager;
     } catch (error) {
       console.error("Error populating modal audio devices:", error);
     }
@@ -3087,6 +3234,7 @@ export class UIManager {
 
       // Get capture parameters from modal controls
       const selectedDevice = this.modalCaptureDevice?.value || "default";
+      const selectedOutputDevice = this.modalOutputDevice?.value || "default";
       const outputChannel = (this.modalOutputChannel?.value as "left" | "right" | "both" | "default") || "both";
       const signalType = (this.modalSignalType?.value as "sweep" | "white" | "pink") || "sweep";
       const duration = parseInt(this.modalSweepDuration?.value || "10");
@@ -3107,9 +3255,11 @@ export class UIManager {
       audioProcessor.setSignalType(signalType);
       audioProcessor.setCaptureVolume(this.captureVolume);
       audioProcessor.setOutputVolume(this.outputVolume);
+      audioProcessor.setOutputDevice(selectedOutputDevice);
 
       console.log("Capture parameters:", {
-        device: selectedDevice,
+        inputDevice: selectedDevice,
+        outputDevice: selectedOutputDevice,
         outputChannel,
         signalType,
         duration,
@@ -3258,13 +3408,37 @@ export class UIManager {
   private handleCaptureError(error: any): void {
     console.error("Capture failed:", error);
     
-    // Update status
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    
+    // Update status with detailed error message and instructions
     if (this.captureModalStatus) {
-      this.captureModalStatus.textContent = `❌ Capture failed: ${error instanceof Error ? error.message : "Unknown error"}`;
+      let statusHTML = `<div class="capture-error"><strong>❌ Capture Failed</strong><br><span class="error-message">${errorMessage}</span>`;
+      
+      // Add specific instructions based on error type
+      if (errorMessage.includes("permission denied")) {
+        statusHTML += '<br><br><div class="error-instructions">📝 <strong>To fix this:</strong><br>1. Click the microphone icon in your browser\'s address bar<br>2. Select "Always allow" for microphone access<br>3. Refresh the page and try again</div>';
+      } else if (errorMessage.includes("No microphone found")) {
+        statusHTML += '<br><br><div class="error-instructions">📝 <strong>To fix this:</strong><br>1. Connect a microphone to your device<br>2. Check your system audio settings<br>3. Try a different input device from the dropdown</div>';
+      } else if (errorMessage.includes("already in use")) {
+        statusHTML += '<br><br><div class="error-instructions">📝 <strong>To fix this:</strong><br>1. Close other applications using your microphone<br>2. Check for running video calls or recording software<br>3. Try again in a few moments</div>';
+      } else if (errorMessage.includes("not supported")) {
+        statusHTML += '<br><br><div class="error-instructions">📝 <strong>To fix this:</strong><br>1. Use a modern browser (Chrome, Firefox, Edge)<br>2. Make sure you\'re using HTTPS or localhost<br>3. Check that your browser supports WebRTC</div>';
+      } else {
+        statusHTML += '<br><br><div class="error-instructions">📝 <strong>Try these steps:</strong><br>1. Refresh the page<br>2. Check your microphone connection<br>3. Try a different browser<br>4. Ensure microphone permissions are granted</div>';
+      }
+      
+      statusHTML += '</div>';
+      this.captureModalStatus.innerHTML = statusHTML;
     }
 
-    // Reset button states
+    // Reset button states - show Start button for retry
     this.resetModalButtons();
+    
+    // Make sure start button is enabled for retry
+    if (this.captureModalStart) {
+      this.captureModalStart.disabled = false;
+      this.captureModalStart.textContent = "Retry Capture";
+    }
 
     // Hide progress
     if (this.captureModalProgress) {
@@ -3328,6 +3502,12 @@ export class UIManager {
     callback: (frequencies: number[], magnitudes: number[]) => void,
   ): void {
     this.onCaptureComplete = callback;
+  }
+  
+  setOutputDeviceChangeCallback(
+    callback: (deviceId: string) => void,
+  ): void {
+    this.outputDeviceChangeCallback = callback;
   }
 
   // Getters for accessing UI elements from main application

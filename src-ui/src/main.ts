@@ -180,6 +180,14 @@ class AutoEQApplication {
         console.log("[MAIN] Cleared captured data from optimization manager");
       }
     });
+    
+    // Connect UI manager output device change callback to audio player
+    this.uiManager.setOutputDeviceChangeCallback((deviceId) => {
+      if (this.audioPlayer) {
+        this.audioPlayer.setOutputDevice(deviceId);
+        console.log(`[MAIN] Audio player output device set to: ${deviceId}`);
+      }
+    });
 
     // Override UI manager event handlers to connect to application logic
     this.overrideUIEventHandlers();

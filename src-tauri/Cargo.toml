@@ -1,6 +1,6 @@
 [package]
 name = "autoeq-tauri"
-version = "0.3.58"
+version = "0.3.60"
 description = "AutoEQ: optimise your speaker or your headset"
 authors = ["pierre@spinorama.org"]
 edition = "2024"
@@ -37,6 +37,7 @@ tauri = { version="2", features = [] }
 tauri-plugin-opener = { version="2" }
 tauri-plugin-dialog = { version="2" }
 tauri-plugin-clipboard-manager = "2"
+cpal = "0.16.0"
 
 [build-dependencies]
 tauri-build = { version="2", features = [] }

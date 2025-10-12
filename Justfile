@@ -14,6 +14,10 @@ default:
 prod:
 	npm run tauri build
 
+# Check code signing setup for macOS distribution
+check-signing:
+	./scripts/check-signing.sh
+
 # ----------------------------------------------------------------------
 # DEV
 # ----------------------------------------------------------------------

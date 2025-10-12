@@ -226,7 +226,12 @@ See `.github/workflows/build.yml` for details.
 
 ### macOS
 
-For distribution, macOS apps need to be signed and notarized. See the [Tauri documentation](https://tauri.app/v1/guides/distribution/sign-macos) for details.
+For distribution, macOS apps need to be signed and notarized. **See [SIGNING.md](./SIGNING.md) for complete setup instructions.**
+
+Quick check your setup:
+```bash
+just check-signing
+```
 
 ### Windows
 

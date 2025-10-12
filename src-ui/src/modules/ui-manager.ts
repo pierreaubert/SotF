@@ -1647,12 +1647,11 @@ export class UIManager {
         // Get specific device details
         try {
           const details = await deviceManager.getDeviceDetails(deviceId);
-          const device = Array.from(deviceManager.unifiedDevices.values()).find(d => d.deviceId === deviceId);
-          if (device) {
+          if (details) {
             deviceInfo = {
-              inputChannels: device.channels,
-              outputChannels: device.channels,
-              deviceLabel: device.name
+              inputChannels: details.channels,
+              outputChannels: details.channels,
+              deviceLabel: details.name
             };
           }
         } catch (e) {

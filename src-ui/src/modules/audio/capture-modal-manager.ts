@@ -200,13 +200,15 @@ export class CaptureModalManager {
 
     // Device change handlers
     this.modalCaptureDevice?.addEventListener('change', async () => {
+      this.updateInputDeviceInfo();
       await this.updateSampleRateForDevice();
       await this.updateOutputChannelOptions();
     });
 
     this.modalOutputDevice?.addEventListener('change', async () => {
       const deviceId = this.modalOutputDevice?.value || 'default';
-      await this.updateOutputDeviceInfo();
+      this.updateOutputDeviceInfo();
+      await this.updateOutputChannelOptions();
       if (this.outputDeviceChangeCallback) {
         this.outputDeviceChangeCallback(deviceId);
       }
@@ -359,6 +361,10 @@ export class CaptureModalManager {
     // Populate audio devices
     await this.populateAudioDevices();
     
+    // Update device info badges
+    this.updateInputDeviceInfo();
+    this.updateOutputDeviceInfo();
+    
     // Update sample rate and bit depth for current device
     await this.updateSampleRateForDevice();
     
@@ -419,7 +425,19 @@ export class CaptureModalManager {
         this.modalCaptureDevice?.appendChild(option);
       });
 
+      // Debug: Check what's actually in the dropdown
+      if (this.modalCaptureDevice) {
+        const options = Array.from(this.modalCaptureDevice.options);
+        console.log('[CaptureModal] INPUT dropdown actual options:');
+        options.forEach(opt => {
+          console.log(`  - value: "${opt.value}", text: "${opt.textContent}", title: "${opt.title}"`);
+        });
+      }
+
       console.log(`Populated ${devices.input.length} input devices`);
+      
+      // Update input device channel info badge
+      this.updateInputDeviceInfo();
       
       // Populate output devices
       this.modalOutputDevice.innerHTML = '';
@@ -443,11 +461,47 @@ export class CaptureModalManager {
         this.modalOutputDevice?.appendChild(option);
       });
       
+      // Debug: Check what's actually in the dropdown
+      if (this.modalOutputDevice) {
+        const options = Array.from(this.modalOutputDevice.options);
+        console.log('[CaptureModal] OUTPUT dropdown actual options:');
+        options.forEach(opt => {
+          console.log(`  - value: "${opt.value}", text: "${opt.textContent}", title: "${opt.title}"`);
+        });
+      }
+      
       console.log(`Populated ${devices.output.length} output devices`);
+      
+      // Update output device channel info badge
+      this.updateOutputDeviceInfo();
     } catch (error) {
       console.error('Error populating audio devices:', error);
     }
   }
+  
+  private updateInputDeviceInfo(): void {
+    if (!this.inputChannelsInfo || !this.modalCaptureDevice) return;
+    
+    const selectedDevice = this.modalCaptureDevice.value;
+    if (!selectedDevice || selectedDevice === 'default') {
+      // For default device, we don't know the exact channels
+      this.inputChannelsInfo.textContent = '??';
+      return;
+    }
+    
+    // Extract channel info from the selected option's title or text
+    const selectedOption = this.modalCaptureDevice.options[this.modalCaptureDevice.selectedIndex];
+    const deviceText = selectedOption.textContent || '';
+    
+    // Parse channel info from text like "Device Name (1ch 44kHz)"
+    const channelMatch = deviceText.match(/(\d+)ch/);
+    if (channelMatch) {
+      this.inputChannelsInfo.textContent = channelMatch[1];
+    } else {
+      this.inputChannelsInfo.textContent = '??';
+    }
+  }
+  
 
   private async startCapture(): Promise<void> {
     console.log('Starting capture...');
@@ -1162,17 +1216,40 @@ export class CaptureModalManager {
   }
 
   private async updateOutputDeviceInfo(): Promise<void> {
-    if (!this.modalOutputDevice) return;
+    // Update the channel info badge
+    if (this.outputChannelsInfo && this.modalOutputDevice) {
+      const selectedDevice = this.modalOutputDevice.value;
+      if (!selectedDevice || selectedDevice === 'default') {
+        // For default device, assume stereo (2 channels)
+        this.outputChannelsInfo.textContent = '2';
+      } else {
+        // Extract channel info from the selected option's text
+        const selectedOption = this.modalOutputDevice.options[this.modalOutputDevice.selectedIndex];
+        const deviceText = selectedOption.textContent || '';
+        
+        // Parse channel info from text like "Device Name (2ch 44kHz)"
+        const channelMatch = deviceText.match(/(\d+)ch/);
+        if (channelMatch) {
+          this.outputChannelsInfo.textContent = channelMatch[1];
+        } else {
+          this.outputChannelsInfo.textContent = '??';
+        }
+      }
+    }
     
-    try {
-      const deviceId = this.modalOutputDevice.value || 'default';
-      
-      // Detect output channels
-      const { detectDeviceCapabilities } = await import('./audio-device');
-      const deviceInfo = await detectDeviceCapabilities(deviceId);
-      
-    } catch (error) {
-      console.error('Error updating output device info:', error);
+    // Also update the sample rate and bit depth badges if needed
+    if (this.modalOutputSampleRate) {
+      // Extract sample rate from device text if available
+      const selectedOption = this.modalOutputDevice?.options[this.modalOutputDevice.selectedIndex];
+      const deviceText = selectedOption?.textContent || '';
+      const rateMatch = deviceText.match(/(\d+)kHz/);
+      if (rateMatch) {
+        this.modalOutputSampleRate.textContent = rateMatch[0];
+      }
+    }
+    
+    if (this.modalOutputBitDepth) {
+      this.modalOutputBitDepth.textContent = '24';
     }
   }
 

@@ -47,30 +47,6 @@ export class CaptureController {
     const inputList = this.deviceManager.getDeviceList('input');
     const outputList = this.deviceManager.getDeviceList('output');
     
-    console.log('[CaptureController] Input device list:', inputList);
-    console.log('[CaptureController] Output device list:', outputList);
-    
-    // Log full device details
-    inputList.forEach(dev => {
-      console.log('[CaptureController] Input device details:', {
-        value: dev.value,
-        label: dev.label,
-        info: dev.info,
-        infoType: typeof dev.info,
-        fullDevice: dev
-      });
-    });
-    
-    outputList.forEach(dev => {
-      console.log('[CaptureController] Output device details:', {
-        value: dev.value,
-        label: dev.label,
-        info: dev.info,
-        infoType: typeof dev.info,
-        fullDevice: dev
-      });
-    });
-    
     return {
       input: [
         { value: 'default', label: 'System Default' },

@@ -44,14 +44,20 @@ export class CaptureController {
   }> {
     const devices = await this.deviceManager.enumerateDevices();
     
+    const inputList = this.deviceManager.getDeviceList('input');
+    const outputList = this.deviceManager.getDeviceList('output');
+    
+    console.log('[CaptureController] Input device list:', inputList);
+    console.log('[CaptureController] Output device list:', outputList);
+    
     return {
       input: [
         { value: 'default', label: 'System Default' },
-        ...this.deviceManager.getDeviceList('input')
+        ...inputList
       ],
       output: [
         { value: 'default', label: 'System Default' },
-        ...this.deviceManager.getDeviceList('output')
+        ...outputList
       ]
     };
   }

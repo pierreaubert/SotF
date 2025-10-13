@@ -83,8 +83,10 @@ export class AudioDeviceManager {
       cpalDeviceMap.input.forEach((dev, idx) => {
         console.log(`  [${idx}] ${dev.name}:`, {
           default_config: dev.default_config,
+          default_config_channels: dev.default_config?.channels,
           supported_configs_count: dev.supported_configs?.length || 0,
-          first_supported_config: dev.supported_configs?.[0]
+          first_supported_config: dev.supported_configs?.[0],
+          raw_device: dev
         });
       });
       
@@ -92,8 +94,10 @@ export class AudioDeviceManager {
       cpalDeviceMap.output.forEach((dev, idx) => {
         console.log(`  [${idx}] ${dev.name}:`, {
           default_config: dev.default_config,
+          default_config_channels: dev.default_config?.channels,
           supported_configs_count: dev.supported_configs?.length || 0,
-          first_supported_config: dev.supported_configs?.[0]
+          first_supported_config: dev.supported_configs?.[0],
+          raw_device: dev
         });
       });
 
@@ -235,6 +239,17 @@ export class AudioDeviceManager {
    * Convert cpal device to unified format
    */
   private cpalToUnified(device: AudioDevice, type: 'input' | 'output'): UnifiedAudioDevice {
+    console.log(`[DeviceManager] cpalToUnified called for device: ${device.name}`);
+    console.log(`[DeviceManager] Device data:`, {
+      name: device.name,
+      type: type,
+      default_config: device.default_config,
+      default_config_type: typeof device.default_config,
+      default_config_channels: device.default_config?.channels,
+      default_config_channels_type: typeof device.default_config?.channels,
+      supported_configs_length: device.supported_configs?.length
+    });
+    
     // Extract unique sample rates from supported configs
     const sampleRates = Array.from(
       new Set(device.supported_configs.map(c => c.sample_rate))
@@ -246,10 +261,15 @@ export class AudioDeviceManager {
     // First, try to get from default_config
     if (device.default_config && device.default_config.channels) {
       const ch = device.default_config.channels;
+      console.log(`[DeviceManager] Checking channels: value=${ch}, type=${typeof ch}`);
       if (typeof ch === 'number' && ch > 0) {
         channels = ch;
         console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels from default_config`);
+      } else {
+        console.warn(`[DeviceManager] Invalid channel value in default_config: ${ch} (type: ${typeof ch})`);
       }
+    } else {
+      console.log(`[DeviceManager] No default_config.channels for device "${device.name}"`);
     }
     
     // If not found, try supported_configs
@@ -555,24 +575,38 @@ export class AudioDeviceManager {
       // Build info string parts
       const infoParts: string[] = [];
       
+      console.log(`[DeviceManager] Building info for device: ${device.name}`);
+      console.log(`  - channels value: ${device.channels}`);
+      console.log(`  - channels type: ${typeof device.channels}`);
+      console.log(`  - channels is null: ${device.channels === null}`);
+      console.log(`  - channels is undefined: ${device.channels === undefined}`);
+      console.log(`  - channels > 0: ${device.channels !== null && device.channels !== undefined && device.channels > 0}`);
+      
       // Add channel count if available
       if (device.channels !== null && device.channels !== undefined && device.channels > 0) {
-        infoParts.push(`${device.channels}ch`);
+        const channelStr = `${device.channels}ch`;
+        infoParts.push(channelStr);
+        console.log(`  - Added channel info: ${channelStr}`);
+      } else {
+        console.log(`  - Skipping channel info (condition failed)`);
       }
       
       // Add sample rate if available
       if (device.defaultSampleRate) {
-        infoParts.push(`${Math.round(device.defaultSampleRate / 1000)}kHz`);
+        const rateStr = `${Math.round(device.defaultSampleRate / 1000)}kHz`;
+        infoParts.push(rateStr);
+        console.log(`  - Added sample rate: ${rateStr}`);
       }
       
       // Add default indicator
       if (device.isDefault) {
         infoParts.push('(Default)');
+        console.log(`  - Added default indicator`);
       }
       
       const info = infoParts.length > 0 ? infoParts.join(' ') : undefined;
       
-      console.log(`[DeviceManager] getDeviceList: ${device.name} (${device.type}), channels=${device.channels}, type=${typeof device.channels}, isWebAudio=${device.isWebAudio}, info="${info}"`);
+      console.log(`[DeviceManager] Final info string for ${device.name}: "${info}"`, { infoParts });
       
       return {
         value: device.deviceId,

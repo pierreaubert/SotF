@@ -400,9 +400,12 @@ export class CaptureModalManager {
       // Populate input devices
       this.modalCaptureDevice.innerHTML = '';
       devices.input.forEach(device => {
+        console.log('[CaptureModal] Adding input device:', device);
         const option = document.createElement('option');
         option.value = device.value;
-        option.textContent = device.label;
+        // Add channel info to the label if available
+        const displayLabel = device.info ? `${device.label} (${device.info})` : device.label;
+        option.textContent = displayLabel;
         if (device.info) {
           option.title = device.info;
         }
@@ -414,9 +417,12 @@ export class CaptureModalManager {
       // Populate output devices
       this.modalOutputDevice.innerHTML = '';
       devices.output.forEach(device => {
+        console.log('[CaptureModal] Adding output device:', device);
         const option = document.createElement('option');
         option.value = device.value;
-        option.textContent = device.label;
+        // Add channel info to the label if available
+        const displayLabel = device.info ? `${device.label} (${device.info})` : device.label;
+        option.textContent = displayLabel;
         if (device.info) {
           option.title = device.info;
         }

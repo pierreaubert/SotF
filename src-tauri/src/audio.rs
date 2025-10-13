@@ -98,6 +98,13 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
                     }
                 });
                 
+                // Report what we detected
+                let channel_info = if let Some(ref cfg) = default_config {
+                    format!("{} ch", cfg.channels)
+                } else {
+                    "unknown".to_string()
+                };
+                
                 input_devices.push(AudioDevice {
                     name: name.clone(),
                     is_input: true,
@@ -105,7 +112,10 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
                     supported_configs,
                     default_config,
                 });
-                println!("[AUDIO DEBUG] Found input device: {} (default: {})", name, is_default);
+                println!("[AUDIO DEBUG] Found input device: {} (default: {}, channels: {})", 
+                         name, 
+                         is_default,
+                         channel_info);
             }
         }
             println!("[AUDIO DEBUG] Total input devices found: {}", input_devices.len());
@@ -186,6 +196,13 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
                     }
                 });
                 
+                // Report what we detected - don't make assumptions
+                let channel_info = if let Some(ref cfg) = default_config {
+                    format!("{} ch", cfg.channels)
+                } else {
+                    "unknown".to_string()
+                };
+                
                 output_devices.push(AudioDevice {
                     name: name.clone(),
                     is_input: false,
@@ -193,7 +210,10 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
                     supported_configs,
                     default_config,
                 });
-                println!("[AUDIO DEBUG] Found output device: {} (default: {})", name, is_default);
+                println!("[AUDIO DEBUG] Found output device: {} (default: {}, channels: {})", 
+                         name, 
+                         is_default,
+                         channel_info);
             }
         }
             println!("[AUDIO DEBUG] Total output devices found: {}", output_devices.len());

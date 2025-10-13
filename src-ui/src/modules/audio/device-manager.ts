@@ -20,7 +20,7 @@ export interface UnifiedAudioDevice {
   type: 'input' | 'output';
   isDefault: boolean;
   isWebAudio: boolean; // true if from WebAudio API, false if from cpal
-  channels: number;
+  channels: number | null; // null if unknown
   sampleRates: number[];
   defaultSampleRate?: number;
   formats: string[];
@@ -65,6 +65,10 @@ export class AudioDeviceManager {
 
     const inputDevices: UnifiedAudioDevice[] = [];
     const outputDevices: UnifiedAudioDevice[] = [];
+    
+    // First, enumerate WebAudio devices for mapping purposes
+    // We need these to properly route audio in the browser
+    await this.enumerateWebAudioDevices();
 
     // Get cpal devices first (if available)
     try {
@@ -72,6 +76,25 @@ export class AudioDeviceManager {
       console.log('[DeviceManager] Got cpal devices:', {
         input: cpalDeviceMap.input.length,
         output: cpalDeviceMap.output.length
+      });
+      
+      // Debug: Log all devices and their structure
+      console.log('[DeviceManager] All input devices:');
+      cpalDeviceMap.input.forEach((dev, idx) => {
+        console.log(`  [${idx}] ${dev.name}:`, {
+          default_config: dev.default_config,
+          supported_configs_count: dev.supported_configs?.length || 0,
+          first_supported_config: dev.supported_configs?.[0]
+        });
+      });
+      
+      console.log('[DeviceManager] All output devices:');
+      cpalDeviceMap.output.forEach((dev, idx) => {
+        console.log(`  [${idx}] ${dev.name}:`, {
+          default_config: dev.default_config,
+          supported_configs_count: dev.supported_configs?.length || 0,
+          first_supported_config: dev.supported_configs?.[0]
+        });
       });
 
       // Process cpal input devices
@@ -94,44 +117,11 @@ export class AudioDeviceManager {
       console.log('[DeviceManager] Falling back to WebAudio only');
     }
 
-    // Get WebAudio devices as fallback or supplement
-    try {
-      const webDevices = await navigator.mediaDevices.enumerateDevices();
-      console.log('[DeviceManager] Got WebAudio devices:', webDevices.length);
-
-      for (const device of webDevices) {
-        // Skip non-audio devices
-        if (device.kind !== 'audioinput' && device.kind !== 'audiooutput') {
-          continue;
-        }
-
-        const type = device.kind === 'audioinput' ? 'input' : 'output';
-        
-        // Check if we already have this device from cpal (match by name)
-        const existingDevice = Array.from(this.unifiedDevices.values()).find(
-          d => d.name === device.label && d.type === type
-        );
-
-        if (existingDevice && this.preferCpal) {
-          // Attach WebAudio info to existing cpal device
-          existingDevice.webAudioDevice = device;
-          continue;
-        }
-
-        // Create unified device from WebAudio
-        const unifiedDevice = await this.webAudioToUnified(device);
-        this.webAudioDevices.set(device.deviceId, device);
-        this.unifiedDevices.set(device.deviceId, unifiedDevice);
-
-        if (type === 'input') {
-          inputDevices.push(unifiedDevice);
-        } else {
-          outputDevices.push(unifiedDevice);
-        }
-      }
-    } catch (error) {
-      console.error('[DeviceManager] Error enumerating WebAudio devices:', error);
-    }
+    // We enumerate both cpal and WebAudio devices
+    // cpal devices are shown in the UI
+    // WebAudio devices are used for actual capture/playback
+    console.log('[DeviceManager] Devices enumerated from both cpal and WebAudio');
+    console.log('[DeviceManager] WebAudio devices available:', this.webAudioDevices.size);
 
     console.log('[DeviceManager] Total unified devices:', {
       input: inputDevices.length,
@@ -139,6 +129,106 @@ export class AudioDeviceManager {
     });
 
     return { input: inputDevices, output: outputDevices };
+  }
+  
+  /**
+   * Enumerate WebAudio devices for mapping
+   */
+  private async enumerateWebAudioDevices(): Promise<void> {
+    try {
+      // Request permissions first to get device labels
+      // This is needed to properly map devices
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+      } catch (e) {
+        console.warn('[DeviceManager] Could not get microphone permission for device labels');
+      }
+      
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log('[DeviceManager] WebAudio devices enumerated:', devices.length);
+      
+      for (const device of devices) {
+        if (device.kind === 'audioinput' || device.kind === 'audiooutput') {
+          this.webAudioDevices.set(device.deviceId, device);
+          console.log(`[DeviceManager] WebAudio ${device.kind}: "${device.label || 'Unnamed'}" (${device.deviceId})`);
+        }
+      }
+    } catch (error) {
+      console.error('[DeviceManager] Failed to enumerate WebAudio devices:', error);
+    }
+  }
+  
+  /**
+   * Map a cpal device ID to a WebAudio device ID
+   * This is crucial for getUserMedia() to work properly
+   */
+  mapToWebAudioDeviceId(cpalDeviceId: string): string {
+    // If it's already a WebAudio device ID, return as-is
+    if (!cpalDeviceId.startsWith('cpal_')) {
+      return cpalDeviceId;
+    }
+    
+    // Get the unified device
+    const unifiedDevice = this.unifiedDevices.get(cpalDeviceId);
+    if (!unifiedDevice || !unifiedDevice.cpalDevice) {
+      console.warn(`[DeviceManager] No unified device found for: ${cpalDeviceId}`);
+      return 'default';
+    }
+    
+    const deviceName = unifiedDevice.name.toLowerCase();
+    const deviceType = unifiedDevice.type;
+    
+    // Look for a matching WebAudio device by name
+    let bestMatch: MediaDeviceInfo | null = null;
+    let bestScore = 0;
+    
+    for (const [id, webDevice] of this.webAudioDevices.entries()) {
+      // Check if it's the right type (input/output)
+      if (deviceType === 'input' && webDevice.kind !== 'audioinput') continue;
+      if (deviceType === 'output' && webDevice.kind !== 'audiooutput') continue;
+      
+      const webDeviceName = webDevice.label.toLowerCase();
+      
+      // Calculate similarity score
+      let score = 0;
+      
+      // Exact match
+      if (webDeviceName === deviceName) {
+        score = 100;
+      }
+      // Contains the full name
+      else if (webDeviceName.includes(deviceName) || deviceName.includes(webDeviceName)) {
+        score = 80;
+      }
+      // Partial word matches
+      else {
+        const cpalWords = deviceName.split(/[\s\-_]+/);
+        const webWords = webDeviceName.split(/[\s\-_]+/);
+        
+        for (const cpalWord of cpalWords) {
+          for (const webWord of webWords) {
+            if (cpalWord.length > 3 && webWord.length > 3) {
+              if (cpalWord.includes(webWord) || webWord.includes(cpalWord)) {
+                score += 20;
+              }
+            }
+          }
+        }
+      }
+      
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = webDevice;
+      }
+    }
+    
+    if (bestMatch && bestScore >= 20) {
+      console.log(`[DeviceManager] Mapped "${unifiedDevice.name}" -> "${bestMatch.label}" (${bestMatch.deviceId}) [score: ${bestScore}]`);
+      return bestMatch.deviceId;
+    }
+    
+    console.warn(`[DeviceManager] No WebAudio match for "${unifiedDevice.name}", using default`);
+    return 'default';
   }
 
   /**
@@ -150,29 +240,49 @@ export class AudioDeviceManager {
       new Set(device.supported_configs.map(c => c.sample_rate))
     ).sort((a, b) => a - b);
 
-    // Get max channel count
-    const maxChannels = Math.max(
-      ...device.supported_configs.map(c => c.channels),
-      device.default_config?.channels || 2
-    );
+    // Get channel count - only report if we know it from configs
+    let channels: number | null = null;
+    if (device.default_config && typeof device.default_config.channels === 'number') {
+      channels = device.default_config.channels;
+      console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels from default_config`);
+    } else if (device.supported_configs.length > 0) {
+      // Use max from supported configs if available
+      const channelCounts = device.supported_configs.map(c => c.channels).filter(c => typeof c === 'number' && c > 0);
+      if (channelCounts.length > 0) {
+        channels = Math.max(...channelCounts);
+        console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels from supported_configs`);
+      } else {
+        console.warn(`[DeviceManager] Device "${device.name}" has no valid channel counts in supported_configs`);
+      }
+    } else {
+      console.warn(`[DeviceManager] Device "${device.name}" has no config data, channels unknown`);
+    }
 
     // Extract unique formats
     const formats = Array.from(
       new Set(device.supported_configs.map(c => c.sample_format))
     );
 
-    return {
+    const unifiedDevice = {
       deviceId: `cpal_${type}_${device.name.replace(/\s+/g, '_')}`,
       name: device.name,
       type,
       isDefault: device.is_default,
       isWebAudio: false,
-      channels: maxChannels,
+      channels,
       sampleRates,
       defaultSampleRate: device.default_config?.sample_rate,
       formats,
       cpalDevice: device
     };
+    
+    console.log(`[DeviceManager] cpalToUnified result for "${device.name}":`, {
+      channels: unifiedDevice.channels,
+      channelsType: typeof unifiedDevice.channels,
+      defaultSampleRate: unifiedDevice.defaultSampleRate
+    });
+    
+    return unifiedDevice;
   }
 
   /**
@@ -181,9 +291,9 @@ export class AudioDeviceManager {
   private async webAudioToUnified(device: MediaDeviceInfo): Promise<UnifiedAudioDevice> {
     const type = device.kind === 'audioinput' ? 'input' : 'output';
     
-    // Try to get device capabilities
-    let channels = 2; // Default assumption
-    let sampleRate = 48000; // Default assumption
+    // Try to get device capabilities - don't guess if we don't know
+    let channels: number | null = null;
+    let sampleRate: number | undefined = undefined;
 
     if (type === 'input') {
       try {
@@ -212,6 +322,19 @@ export class AudioDeviceManager {
       } catch (error) {
         console.warn('[DeviceManager] Could not probe WebAudio device:', device.label, error);
       }
+    } else {
+      // For output devices, we cannot directly probe them via WebAudio API
+      // Don't make assumptions - report null for unknown
+      console.log('[DeviceManager] Output device channel count unknown (WebAudio):', device.label);
+      
+      // Get sample rate from audio context
+      try {
+        const audioContext = new AudioContext();
+        sampleRate = audioContext.sampleRate;
+        audioContext.close();
+      } catch (error) {
+        console.warn('[DeviceManager] Could not get audio context sample rate:', error);
+      }
     }
 
     return {
@@ -221,7 +344,7 @@ export class AudioDeviceManager {
       isDefault: device.deviceId === 'default',
       isWebAudio: true,
       channels,
-      sampleRates: [sampleRate],
+      sampleRates: sampleRate ? [sampleRate] : [],
       defaultSampleRate: sampleRate,
       formats: ['f32'], // WebAudio typically uses float32
       webAudioDevice: device
@@ -252,7 +375,7 @@ export class AudioDeviceManager {
         // Build config with defaults
         const fullConfig: AudioConfig = {
           sample_rate: config?.sample_rate || device.defaultSampleRate || 48000,
-          channels: config?.channels || Math.min(2, device.channels),
+          channels: config?.channels || (device.channels !== null ? Math.min(2, device.channels) : 2),
           buffer_size: config?.buffer_size,
           sample_format: (config?.sample_format || device.formats[0] || 'f32') as any
         };
@@ -281,16 +404,16 @@ export class AudioDeviceManager {
     }
 
     // For WebAudio devices, just return success as they're configured on use
-    return {
-      success: true,
-      device,
-      config: {
-        sample_rate: device.defaultSampleRate || 48000,
-        channels: Math.min(config?.channels || 2, device.channels),
-        buffer_size: config?.buffer_size,
-        sample_format: 'f32'
-      }
-    };
+      return {
+        success: true,
+        device,
+        config: {
+          sample_rate: device.defaultSampleRate || 48000,
+          channels: Math.min(config?.channels || 2, device.channels !== null ? device.channels : 2),
+          buffer_size: config?.buffer_size,
+          sample_format: 'f32'
+        }
+      };
   }
 
   /**
@@ -375,7 +498,7 @@ export class AudioDeviceManager {
       if (!device.isWebAudio) score += 10;
 
       // Match channel count
-      if (criteria?.preferredChannels) {
+      if (criteria?.preferredChannels && device.channels !== null) {
         if (device.channels >= criteria.preferredChannels) {
           score += 5;
         }
@@ -390,7 +513,9 @@ export class AudioDeviceManager {
 
       // Prefer devices with more capabilities
       score += device.sampleRates.length;
-      score += device.channels;
+      if (device.channels !== null) {
+        score += device.channels;
+      }
 
       if (score > bestScore) {
         bestScore = score;
@@ -409,10 +534,15 @@ export class AudioDeviceManager {
       d => d.type === type
     );
 
-    return devices.map(device => ({
-      value: device.deviceId,
-      label: device.name,
-      info: `${device.channels}ch ${device.defaultSampleRate ? Math.round(device.defaultSampleRate / 1000) + 'kHz' : ''} ${device.isDefault ? '(Default)' : ''}`
-    }));
+    const result = devices.map(device => {
+      console.log(`[DeviceManager] getDeviceList: ${device.name} (${device.type}), channels=${device.channels}, isWebAudio=${device.isWebAudio}`);
+      return {
+        value: device.deviceId,
+        label: device.name,
+        info: `${device.channels !== null ? device.channels + 'ch' : '??'} ${device.defaultSampleRate ? Math.round(device.defaultSampleRate / 1000) + 'kHz' : ''} ${device.isDefault ? '(Default)' : ''}`
+      };
+    });
+    
+    return result;
   }
 }

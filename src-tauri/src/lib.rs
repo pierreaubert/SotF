@@ -592,6 +592,7 @@ async fn run_optimization_internal(
         adaptive_weight_cr: params.adaptive_weight_cr.unwrap_or(0.7), // Adaptive weight for CR
         no_parallel: false,
         parallel_threads: 0,
+        qa: false, // Quality assurance mode disabled for UI
     };
 
     // Load input data (following autoeq.rs pattern)
@@ -1052,6 +1053,7 @@ async fn generate_plot_filters(params: PlotFiltersParams) -> Result<serde_json::
         adaptive_weight_cr: 0.9,
         no_parallel: false,
         parallel_threads: 0,
+        qa: false, // Quality assurance mode disabled for UI
     };
 
     // Generate the plot

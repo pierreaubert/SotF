@@ -456,7 +456,7 @@ export class AudioProcessor {
       }
 
       // Request microphone access with specific device if provided
-      const audioConstraints: MediaStreamConstraints = {
+      let audioConstraints: MediaStreamConstraints = {
         audio: {
           echoCancellation: false,
           noiseSuppression: false,
@@ -468,8 +468,29 @@ export class AudioProcessor {
         },
       };
 
-      this.mediaStream =
-        await navigator.mediaDevices.getUserMedia(audioConstraints);
+      console.log('Requesting getUserMedia with constraints:', audioConstraints);
+      
+      try {
+        this.mediaStream =
+          await navigator.mediaDevices.getUserMedia(audioConstraints);
+      } catch (error: any) {
+        // If we get OverconstrainedError with a specific device, try with default
+        if (error.name === 'OverconstrainedError' && deviceId && deviceId !== 'default') {
+          console.warn(`Failed to use device ${deviceId}, falling back to default device`);
+          audioConstraints = {
+            audio: {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              sampleRate: this.captureSampleRate,
+            },
+          };
+          this.mediaStream =
+            await navigator.mediaDevices.getUserMedia(audioConstraints);
+        } else {
+          throw error;
+        }
+      }
 
       if (!this.audioContext) {
         throw new Error("Audio context not initialized");
@@ -602,7 +623,17 @@ export class AudioProcessor {
       throw new Error("Capture not properly initialized");
     }
 
+    // Resume audio context if suspended (required for some browsers)
+    if (this.audioContext.state === 'suspended') {
+      console.log('Resuming suspended audio context...');
+      await this.audioContext.resume();
+      console.log('Audio context resumed, state:', this.audioContext.state);
+    }
+
     console.log(`Starting ${this.signalType} capture...`);
+    console.log(`Audio context state: ${this.audioContext.state}`);
+    console.log(`Output volume: ${this.outputVolume}%`);
+    console.log(`Output device ID: ${this.outputDeviceId}`);
 
     const duration = this.sweepDuration;
     let sourceNode: AudioNode;
@@ -645,7 +676,7 @@ export class AudioProcessor {
     let finalDestination: AudioNode;
     let mediaStreamDestination: MediaStreamAudioDestinationNode | null = null;
     
-    if (this.outputDeviceId !== "default") {
+    if (this.outputDeviceId && this.outputDeviceId !== "default" && this.outputDeviceId !== "") {
       // For specific output devices, we need to use MediaStreamDestination
       // and route it through an audio element with setSinkId
       try {
@@ -653,27 +684,45 @@ export class AudioProcessor {
         this.captureAudioElement = new Audio();
         this.captureAudioElement.srcObject = mediaStreamDestination.stream;
         this.captureAudioElement.autoplay = true;
+        this.captureAudioElement.volume = 1.0; // Ensure element volume is up
         
         // Try to set the output device
         if ('setSinkId' in this.captureAudioElement) {
           try {
             await (this.captureAudioElement as any).setSinkId(this.outputDeviceId);
-            console.log(`Audio routed to device: ${this.outputDeviceId}`);
+            console.log(`Audio successfully routed to device: ${this.outputDeviceId}`);
           } catch (setSinkError) {
-            console.warn("Failed to set sink ID:", setSinkError);
+            console.warn(`Failed to set sink ID "${this.outputDeviceId}":`, setSinkError);
+            console.log('Continuing with current default output device');
           }
         } else {
-          console.warn("setSinkId not supported, using default output device");
+          console.warn("setSinkId not supported by browser, using default output device");
+        }
+        
+        // Start playing the audio element with error handling
+        try {
+          const playPromise = this.captureAudioElement.play();
+          if (playPromise !== undefined) {
+            await playPromise;
+          }
+          console.log("Audio element successfully playing for output routing");
+        } catch (playError: any) {
+          if (playError.name === 'NotAllowedError') {
+            console.warn("Autoplay blocked, user interaction may be required:", playError);
+          } else {
+            console.warn("Failed to play audio element:", playError);
+          }
         }
         
         finalDestination = mediaStreamDestination;
         nodesToCleanup.push(mediaStreamDestination);
       } catch (error) {
-        console.error("Failed to set output device, falling back to default:", error);
+        console.error("Failed to setup output device routing, falling back to default:", error);
         finalDestination = this.audioContext.destination;
       }
     } else {
       // Use default output device
+      console.log('Using default audio output device');
       finalDestination = this.audioContext.destination;
     }
 
@@ -714,9 +763,13 @@ export class AudioProcessor {
 
     // Start the signal
     if (this.signalType === "sweep" && this.oscillator) {
+      console.log("Starting oscillator sweep...");
       this.oscillator.start();
+      console.log("Oscillator started");
     } else if (this.noiseSource) {
+      console.log("Starting noise source...");
       this.noiseSource.start();
+      console.log("Noise source started");
     }
 
     // Collect frequency response data during sweep

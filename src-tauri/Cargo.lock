@@ -495,7 +495,7 @@ dependencies = [
 
 [[package]]
 name = "autoeq-tauri"
-version = "0.3.65"
+version = "0.3.67"
 dependencies = [
  "accelerate-src",
  "autoeq",

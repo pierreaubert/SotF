@@ -240,22 +240,39 @@ export class AudioDeviceManager {
       new Set(device.supported_configs.map(c => c.sample_rate))
     ).sort((a, b) => a - b);
 
-    // Get channel count - only report if we know it from configs
+    // Get channel count - check multiple sources
     let channels: number | null = null;
-    if (device.default_config && typeof device.default_config.channels === 'number') {
-      channels = device.default_config.channels;
-      console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels from default_config`);
-    } else if (device.supported_configs.length > 0) {
-      // Use max from supported configs if available
-      const channelCounts = device.supported_configs.map(c => c.channels).filter(c => typeof c === 'number' && c > 0);
-      if (channelCounts.length > 0) {
-        channels = Math.max(...channelCounts);
-        console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels from supported_configs`);
-      } else {
-        console.warn(`[DeviceManager] Device "${device.name}" has no valid channel counts in supported_configs`);
+    
+    // First, try to get from default_config
+    if (device.default_config && device.default_config.channels) {
+      const ch = device.default_config.channels;
+      if (typeof ch === 'number' && ch > 0) {
+        channels = ch;
+        console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels from default_config`);
       }
-    } else {
-      console.warn(`[DeviceManager] Device "${device.name}" has no config data, channels unknown`);
+    }
+    
+    // If not found, try supported_configs
+    if (channels === null && device.supported_configs && device.supported_configs.length > 0) {
+      // Collect all unique channel counts
+      const channelSet = new Set<number>();
+      for (const config of device.supported_configs) {
+        if (config.channels && typeof config.channels === 'number' && config.channels > 0) {
+          channelSet.add(config.channels);
+        }
+      }
+      
+      if (channelSet.size > 0) {
+        // Use the maximum channel count available
+        channels = Math.max(...Array.from(channelSet));
+        console.log(`[DeviceManager] Device "${device.name}" has ${channels} channels (max from ${channelSet.size} supported configs)`);
+      } else {
+        console.warn(`[DeviceManager] Device "${device.name}" has configs but no valid channel counts`);
+      }
+    }
+    
+    if (channels === null) {
+      console.warn(`[DeviceManager] Device "${device.name}" has no channel information available`);
     }
 
     // Extract unique formats
@@ -535,11 +552,32 @@ export class AudioDeviceManager {
     );
 
     const result = devices.map(device => {
-      console.log(`[DeviceManager] getDeviceList: ${device.name} (${device.type}), channels=${device.channels}, isWebAudio=${device.isWebAudio}`);
+      // Build info string parts
+      const infoParts: string[] = [];
+      
+      // Add channel count if available
+      if (device.channels !== null && device.channels !== undefined && device.channels > 0) {
+        infoParts.push(`${device.channels}ch`);
+      }
+      
+      // Add sample rate if available
+      if (device.defaultSampleRate) {
+        infoParts.push(`${Math.round(device.defaultSampleRate / 1000)}kHz`);
+      }
+      
+      // Add default indicator
+      if (device.isDefault) {
+        infoParts.push('(Default)');
+      }
+      
+      const info = infoParts.length > 0 ? infoParts.join(' ') : undefined;
+      
+      console.log(`[DeviceManager] getDeviceList: ${device.name} (${device.type}), channels=${device.channels}, type=${typeof device.channels}, isWebAudio=${device.isWebAudio}, info="${info}"`);
+      
       return {
         value: device.deviceId,
         label: device.name,
-        info: `${device.channels !== null ? device.channels + 'ch' : '??'} ${device.defaultSampleRate ? Math.round(device.defaultSampleRate / 1000) + 'kHz' : ''} ${device.isDefault ? '(Default)' : ''}`
+        info: info
       };
     });
     

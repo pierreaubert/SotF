@@ -1,10 +1,9 @@
 // Capture Modal Management - Handles the capture modal UI and interactions
 
-import { CaptureGraphRenderer } from './capture-graph';
+import { CaptureController, type CaptureParameters, type DeviceInfo } from './capture-controller';
 import { CaptureStorage } from './capture-storage';
-import { AudioProcessor } from './audio-processor';
-import { AudioDeviceManager } from './device-manager';
 import { CSVExporter } from './csv-export';
+import { CaptureGraphRenderer } from './capture-graph';
 
 export interface CaptureData {
   frequencies: number[];
@@ -92,10 +91,10 @@ export class CaptureModalManager {
 
   // State
   private captureGraphRenderer: CaptureGraphRenderer | null = null;
+  private captureController: CaptureController | null = null;
   private currentCaptureData: CaptureData | null = null;
   private captureVolume: number = 70;
   private outputVolume: number = 50;
-  private deviceManager: AudioDeviceManager | null = null;
 
   // Callbacks
   private onCaptureComplete?: (frequencies: number[], magnitudes: number[]) => void;
@@ -391,18 +390,16 @@ export class CaptureModalManager {
     if (!this.modalCaptureDevice || !this.modalOutputDevice) return;
 
     try {
-      this.deviceManager = new AudioDeviceManager(true);
-      const devices = await this.deviceManager.enumerateDevices();
+      // Initialize capture controller if not already done
+      if (!this.captureController) {
+        this.captureController = new CaptureController();
+      }
+      
+      const devices = await this.captureController.getAudioDevices();
       
       // Populate input devices
       this.modalCaptureDevice.innerHTML = '';
-      const defaultInputOption = document.createElement('option');
-      defaultInputOption.value = 'default';
-      defaultInputOption.textContent = 'System Default';
-      this.modalCaptureDevice.appendChild(defaultInputOption);
-
-      const inputList = this.deviceManager.getDeviceList('input');
-      inputList.forEach(device => {
+      devices.input.forEach(device => {
         const option = document.createElement('option');
         option.value = device.value;
         option.textContent = device.label;
@@ -416,13 +413,7 @@ export class CaptureModalManager {
       
       // Populate output devices
       this.modalOutputDevice.innerHTML = '';
-      const defaultOutputOption = document.createElement('option');
-      defaultOutputOption.value = 'default';
-      defaultOutputOption.textContent = 'System Default';
-      this.modalOutputDevice.appendChild(defaultOutputOption);
-
-      const outputList = this.deviceManager.getDeviceList('output');
-      outputList.forEach(device => {
+      devices.output.forEach(device => {
         const option = document.createElement('option');
         option.value = device.value;
         option.textContent = device.label;
@@ -462,82 +453,50 @@ export class CaptureModalManager {
       }
 
       // Get capture parameters
-      const selectedDevice = this.modalCaptureDevice?.value || 'default';
-      const selectedOutputDevice = this.modalOutputDevice?.value || 'default';
-      const outputChannel = (this.modalOutputChannel?.value as 'left' | 'right' | 'both' | 'default') || 'both';
-      const signalType = (this.modalSignalType?.value as 'sweep' | 'white' | 'pink') || 'sweep';
-      const duration = parseInt(this.modalSweepDuration?.value || '10');
-      
       const sampleRateText = this.modalCaptureSampleRate?.textContent || '48kHz';
       const sampleRate = sampleRateText.includes('kHz') 
         ? parseFloat(sampleRateText.replace('kHz', '')) * 1000 
         : parseInt(sampleRateText.replace('Hz', ''));
 
-      // Map cpal device IDs to WebAudio device IDs
-      const webAudioInputDevice = this.deviceManager ? 
-        this.deviceManager.mapToWebAudioDeviceId(selectedDevice) : selectedDevice;
-      const webAudioOutputDevice = this.deviceManager ? 
-        this.deviceManager.mapToWebAudioDeviceId(selectedOutputDevice) : selectedOutputDevice;
-      
-      console.log('Device ID mapping:', {
-        cpalInput: selectedDevice,
-        webAudioInput: webAudioInputDevice,
-        cpalOutput: selectedOutputDevice,
-        webAudioOutput: webAudioOutputDevice
-      });
-
-      // Setup audio processor
-      const audioProcessor = new AudioProcessor();
-      audioProcessor.setSweepDuration(duration);
-      audioProcessor.setOutputChannel(outputChannel);
-      audioProcessor.setSampleRate(sampleRate);
-      audioProcessor.setSignalType(signalType);
-      audioProcessor.setCaptureVolume(this.captureVolume);
-      audioProcessor.setOutputVolume(this.outputVolume);
-      audioProcessor.setOutputDevice(webAudioOutputDevice);  // Use WebAudio device ID
-
-      console.log('Capture parameters:', {
-        inputDevice: selectedDevice,
-        webAudioInputDevice: webAudioInputDevice,
-        outputDevice: selectedOutputDevice,
-        webAudioOutputDevice: webAudioOutputDevice,
-        outputChannel,
-        signalType,
-        duration,
-        sampleRate,
+      const captureParams: CaptureParameters = {
+        inputDevice: this.modalCaptureDevice?.value || 'default',
+        outputDevice: this.modalOutputDevice?.value || 'default',
+        outputChannel: (this.modalOutputChannel?.value as 'left' | 'right' | 'both' | 'default') || 'both',
+        signalType: (this.modalSignalType?.value as 'sweep' | 'white' | 'pink') || 'sweep',
+        duration: parseInt(this.modalSweepDuration?.value || '10'),
+        sampleRate: sampleRate,
         inputVolume: this.captureVolume,
         outputVolume: this.outputVolume
-      });
+      };
+
+      console.log('Capture parameters:', captureParams);
 
       // Update status message
       if (this.captureModalStatus) {
-        const signalName = signalType === 'sweep' ? 'frequency sweep' : `${signalType} noise`;
+        const signalName = captureParams.signalType === 'sweep' ? 'frequency sweep' : `${captureParams.signalType} noise`;
         this.captureModalStatus.textContent = `Playing ${signalName} and capturing response...`;
       }
 
-      // Start capture - use WebAudio device ID
-      const result = await audioProcessor.startCapture(webAudioInputDevice);
+      // Initialize capture controller if needed
+      if (!this.captureController) {
+        this.captureController = new CaptureController();
+      }
+
+      // Start capture
+      const result = await this.captureController.startCapture(captureParams);
       
       if (result.success && result.frequencies.length > 0) {
-        await this.handleSuccessfulCapture(result, {
-          device: selectedDevice,
-          outputChannel,
-          signalType,
-          duration,
-          sampleRate
-        });
+        await this.handleSuccessfulCapture(result, captureParams);
       } else {
         throw new Error(result.error || 'Capture failed');
       }
-
-      audioProcessor.destroy();
     } catch (error) {
       console.error('Capture error:', error);
       this.handleCaptureError(error);
     }
   }
 
-  private async handleSuccessfulCapture(result: any, params: any): Promise<void> {
+  private async handleSuccessfulCapture(result: any, params: CaptureParameters): Promise<void> {
     console.log('Processing successful capture...');
     
     const octaveFraction = this.captureSmoothingSelect ? 
@@ -567,7 +526,7 @@ export class CaptureModalManager {
       smoothedPhase,
       metadata: {
         timestamp: new Date(),
-        deviceName: params.device === 'default' ? 'Default Microphone' : 'Selected Device',
+        deviceName: params.inputDevice === 'default' ? 'Default Microphone' : 'Selected Device',
         signalType: params.signalType,
         duration: params.duration,
         sampleRate: params.sampleRate,
@@ -671,6 +630,11 @@ export class CaptureModalManager {
 
   private stopCapture(): void {
     console.log('Stopping capture...');
+    
+    if (this.captureController) {
+      this.captureController.stopCapture();
+    }
+    
     this.resetButtons();
     if (this.captureModalStatus) {
       this.captureModalStatus.textContent = 'Capture stopped';
@@ -1058,30 +1022,29 @@ export class CaptureModalManager {
       let deviceInfo: any = null;
       
       if (deviceId === 'default') {
-        // Find the default output device
-        if (this.deviceManager) {
-          const defaultDevice = this.deviceManager.findBestDevice('output', { preferDefault: true });
-          if (defaultDevice) {
-            deviceInfo = {
-              outputChannels: defaultDevice.channels,
-              deviceLabel: defaultDevice.name
-            };
-          }
-        }
+        // For default device, assume stereo
+        deviceInfo = {
+          outputChannels: 2,
+          deviceLabel: 'Default Output'
+        };
       } else {
-        // Get specific device details
-        try {
-          if (this.deviceManager) {
-            const details = await this.deviceManager.getDeviceDetails(deviceId);
-            if (details) {
+        // Get specific device details from our device list
+        if (this.captureController) {
+          try {
+            const devices = await this.captureController.getAudioDevices();
+            const outputDevice = devices.output.find(d => d.value === deviceId);
+            if (outputDevice && outputDevice.info) {
+              // Parse channel count from info string (e.g. "2ch 48kHz")
+              const channelMatch = outputDevice.info.match(/(\d+)ch/);
+              const channels = channelMatch ? parseInt(channelMatch[1]) : null;
               deviceInfo = {
-                outputChannels: details.channels,
-                deviceLabel: details.name
+                outputChannels: channels,
+                deviceLabel: outputDevice.label
               };
             }
+          } catch (e) {
+            console.warn('[CaptureModal] Could not get device details for output device:', deviceId, e);
           }
-        } catch (e) {
-          console.warn('[CaptureModal] Could not get device details for output device:', deviceId, e);
         }
       }
       

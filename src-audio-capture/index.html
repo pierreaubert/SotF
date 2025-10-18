@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Capture Demo - Tauri App</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+</head>
+<body>
+  <h1>🎤 Audio Capture Demo (Tauri)</h1>
+
+  <div id="capture_modal" class="modal capture-modal">
+    <div class="modal-content capture-modal-content">
+      <!-- Device Selection -->
+      <div class="section">
+        <h2>Audio Devices</h2>
+        <div class="controls-grid">
+          <div class="control-group">
+                        <label for="input-device">Input Device (Microphone)</label>
+                        <select id="input-device">
+                          <option value="">Loading devices...</option>
+                        </select>
+          </div>
+          <div class="control-group">
+            <label for="output-device">Output Device (Speaker)</label>
+            <select id="output-device">
+              <option value="">Loading devices...</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Capture Settings -->
+       <div class="section">
+		 <h2>Capture Settings</h2>
+		 <div class="controls-grid">
+		   <div class="control-group">
+		     <label for="signal-type">Signal Type</label>
+		     <select id="signal-type">
+		       <option value="sweep" selected>Frequency Sweep</option>
+		       <option value="white">White Noise</option>
+		       <option value="pink">Pink Noise</option>
+		     </select>
+		   </div>
+		   <div class="control-group">
+		     <label for="duration">Duration (seconds)</label>
+			 <select id="duration">
+			     <option value="5">5 seconds</option>
+			     <option value="10" selected>10 seconds</option>
+			     <option value="15">15 seconds</option>
+			     <option value="20">20 seconds</option>
+			 </select>
+		     </div>
+		     <div class="control-group">
+			 <label for="output-channel">Output Channel</label>
+			 <select id="output-channel">
+			     <option value="both" selected>Both (Stereo)</option>
+			     <option value="left">Left Only</option>
+			     <option value="right">Right Only</option>
+			 </select>
+		     </div>
+		     <div class="control-group">
+			 <label for="sample-rate">Sample Rate</label>
+			 <select id="sample-rate">
+			     <option value="44100">44.1 kHz</option>
+			     <option value="48000" selected>48 kHz</option>
+			     <option value="96000">96 kHz</option>
+			     <option value="192000">192 kHz</option>
+			 </select>
+		     </div>
+		 </div>
+
+		 <!-- Volume Controls -->
+		 <div class="controls-grid">
+		     <div class="control-group">
+			 <label>Input Volume</label>
+			 <div class="volume-control">
+			     <input type="range" id="input-volume" min="0" max="100" value="70">
+			     <span class="volume-value" id="input-volume-value">70%</span>
+			 </div>
+		     </div>
+		     <div class="control-group">
+			 <label>Output Volume</label>
+			 <div class="volume-control">
+			     <input type="range" id="output-volume" min="0" max="100" value="50">
+			     <span class="volume-value" id="output-volume-value">50%</span>
+			 </div>
+		     </div>
+		 </div>
+	     </div>
+
+	     <!-- Action Buttons -->
+	     <div class="button-group">
+		 <button id="start-capture" class="btn btn-primary">🎤 Start Capture</button>
+		 <button id="stop-capture" class="btn btn-danger" disabled>⏹️ Stop</button>
+		 <button id="export-csv" class="btn btn-secondary" disabled>💾 Export CSV</button>
+		 <button id="refresh-devices" class="btn btn-secondary">🔄 Refresh Devices</button>
+	     </div>
+
+	     <!-- Progress Bar -->
+	     <div id="capture-progress" class="capture-progress">
+		 <div class="progress-bar">
+		     <div id="progress-fill" class="progress-fill">0%</div>
+		 </div>
+	     </div>
+
+	     <!-- Results Display -->
+	     <div id="results-container" class="results-container">
+		 <h3>Capture Results</h3>
+		 <div id="results-info"></div>
+		 <canvas id="capture-graph"></canvas>
+	     </div>
+	 </div>
+     </div>
+   </div>
+
+   <!-- Vite will inject the script here -->
+   <script type="module" src="/src/main.ts"></script>
+ </body>
+ </html>

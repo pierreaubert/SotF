@@ -5,7 +5,7 @@ import {
   OPTIMIZATION_LIMITS,
   OPTIMIZATION_STEPS,
 } from "./optimization-constants";
-import { CaptureModalManager } from "./audio/capture-modal-manager";
+import { CaptureModalManager } from "../../../src-audio-capture/src/capture-modal-manager";
 
 export class UIManager {
   private form!: HTMLFormElement;
@@ -925,7 +925,7 @@ export class UIManager {
       }
 
       // Import AudioProcessor dynamically to avoid circular dependencies
-      const { AudioProcessor } = await import("./audio/audio-processor");
+      const { AudioProcessor } = await import("../../../src-audio-player/src/audio-processor");
       const audioProcessor = new AudioProcessor();
 
       try {
@@ -1211,7 +1211,7 @@ export class UIManager {
     // Populate audio devices on initialization
     if (this.captureDeviceSelect) {
       try {
-        const { AudioProcessor } = await import("./audio/audio-processor");
+        const { AudioProcessor } = await import("../../../src-audio-player/src/audio-processor");
         const audioProcessor = new AudioProcessor();
         await this.populateAudioDevices(audioProcessor);
         audioProcessor.destroy();

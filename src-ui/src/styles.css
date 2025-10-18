@@ -1,4 +1,4 @@
-@import "./modules/audio/audio-player.css";
+@import "@audio-player/audio-player.css";
 
 :root {
   --bg-primary: #f8f9fa;

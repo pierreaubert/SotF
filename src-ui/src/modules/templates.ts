@@ -561,7 +561,23 @@ export function generateCaptureModal(): string {
                     <span id="input_channels_info" class="channel-count-badge">? ch</span>
                     <span id="modal_capture_sample_rate" class="info-badge sample-rate-badge">48kHz</span>
                     <span id="modal_capture_bit_depth" class="info-badge bit-depth-badge">24</span>
-                    <button id="input_routing_btn" class="routing-button" title="Configure input channel routing" style="display: none;"></button>
+                    <button id="input_routing_btn" class="routing-button" title="Configure input channel routing">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <!-- Grid lines -->
+                        <line x1="0" y1="0" x2="0" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="5.333" y1="0" x2="5.333" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="10.666" y1="0" x2="10.666" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="16" y1="0" x2="16" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="0" x2="16" y2="0" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="5.333" x2="16" y2="5.333" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="10.666" x2="16" y2="10.666" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="16" x2="16" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <!-- Diagonal marks (identity routing) -->
+                        <circle cx="2.666" cy="2.666" r="1.5" fill="#57F287"/>
+                        <circle cx="8" cy="8" r="1.5" fill="#57F287"/>
+                        <circle cx="13.333" cy="13.333" r="1.5" fill="#57F287"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
                 <select id="modal_capture_device" class="capture-device-select">
@@ -597,7 +613,23 @@ export function generateCaptureModal(): string {
                     <span id="output_channels_info" class="channel-count-badge">? ch</span>
                     <span id="modal_output_sample_rate" class="info-badge sample-rate-badge">48kHz</span>
                     <span id="modal_output_bit_depth" class="info-badge bit-depth-badge">24</span>
-                    <button id="output_routing_btn" class="routing-button" title="Configure output channel routing" style="display: none;"></button>
+                    <button id="output_routing_btn" class="routing-button" title="Configure output channel routing">
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                        <!-- Grid lines -->
+                        <line x1="0" y1="0" x2="0" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="5.333" y1="0" x2="5.333" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="10.666" y1="0" x2="10.666" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="16" y1="0" x2="16" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="0" x2="16" y2="0" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="5.333" x2="16" y2="5.333" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="10.666" x2="16" y2="10.666" stroke="currentColor" stroke-width="1"/>
+                        <line x1="0" y1="16" x2="16" y2="16" stroke="currentColor" stroke-width="1"/>
+                        <!-- Diagonal marks (identity routing) -->
+                        <circle cx="2.666" cy="2.666" r="1.5" fill="#57F287"/>
+                        <circle cx="8" cy="8" r="1.5" fill="#57F287"/>
+                        <circle cx="13.333" cy="13.333" r="1.5" fill="#57F287"/>
+                      </svg>
+                    </button>
                   </div>
                 </div>
                 <select id="modal_output_device" class="output-device-select">
@@ -674,6 +706,12 @@ export function generateCaptureModal(): string {
                   <p>Click "Start Capture" to begin audio measurement with phase analysis</p>
                 </div>
               </div>
+              <!-- Progress bar -->
+              <div id="capture_modal_progress" class="capture-progress" style="display: none;">
+                <div id="capture_modal_progress_fill" class="capture-progress-fill"></div>
+              </div>
+              <!-- Status message -->
+              <div id="capture_modal_status" class="capture-status"></div>
             </div>
           </div>
         </div>

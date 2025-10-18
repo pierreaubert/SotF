@@ -14,6 +14,10 @@ default:
 prod:
 	npm run tauri build
 
+# Build audio capture app for production
+prod-capture:
+	npm run tauri:capture:build
+
 # Check code signing setup for macOS distribution
 check-signing:
 	./scripts/check-signing.sh
@@ -24,6 +28,14 @@ check-signing:
 
 dev:
 	npm run tauri dev
+
+# Run audio capture as separate Tauri app (with backend)
+dev-capture-app:
+	npm run tauri:capture
+
+# Run audio capture UI only (requires backend from 'just dev')
+dev-capture:
+	npm run dev:capture
 
 # ----------------------------------------------------------------------
 # UPDATE

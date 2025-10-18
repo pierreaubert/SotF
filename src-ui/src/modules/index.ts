@@ -11,5 +11,5 @@ export {
   type AudioPlayerConfig,
   type AudioPlayerCallbacks,
   type FilterParam,
-} from "./audio/audio-player";
+} from "../../../src-audio-player/src/audio-player";
 export { LayoutManager } from "./layout-manager";

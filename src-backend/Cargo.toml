@@ -1,0 +1,16 @@
+[package]
+name = "autoeq_backend"
+edition = { workspace = true }
+
+[lib]
+name = "autoeq_backend"
+path = "src/lib.rs"
+
+[dependencies]
+autoeq = { workspace = true }
+ndarray = { workspace = true }
+plotly = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+cpal = { workspace = true }
+tauri = { workspace = true }

@@ -2,13 +2,18 @@
 import { CaptureController } from './capture-controller';
 import { CaptureGraphRenderer } from './capture-graph';
 import { CSVExporter } from './csv-export';
+import { RoutingMatrix } from '@audio-player/audio-routing';
+import { SweepDatabase, type SweepRecord } from './sweep-database';
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Audio Capture Demo initializing...');
   
-  // Initialize controller
+  // Initialize controller and database
   const captureController = new CaptureController();
+  const sweepDatabase = new SweepDatabase();
+  await sweepDatabase.init();
+  
   let currentCaptureData: any = null;
   let graphRenderer: CaptureGraphRenderer | null = null;
   
@@ -33,8 +38,33 @@ document.addEventListener('DOMContentLoaded', async () => {
     progressFill: document.getElementById('progress-fill') as HTMLElement,
     resultsContainer: document.getElementById('results-container') as HTMLElement,
     resultsInfo: document.getElementById('results-info') as HTMLElement,
-    captureGraph: document.getElementById('capture-graph') as HTMLCanvasElement
+    captureGraph: document.getElementById('capture-graph') as HTMLCanvasElement,
+    graphPlaceholder: document.getElementById('capture-graph-placeholder') as HTMLElement,
+    inputChannelsInfo: document.getElementById('input-channels-info') as HTMLElement,
+    inputSampleRate: document.getElementById('input-sample-rate') as HTMLElement,
+    inputBitDepth: document.getElementById('input-bit-depth') as HTMLElement,
+    outputChannelsInfo: document.getElementById('output-channels-info') as HTMLElement,
+    outputSampleRate: document.getElementById('output-sample-rate') as HTMLElement,
+    outputBitDepth: document.getElementById('output-bit-depth') as HTMLElement,
+    inputRoutingBtn: document.getElementById('input-routing-btn') as HTMLButtonElement,
+    outputRoutingBtn: document.getElementById('output-routing-btn') as HTMLButtonElement,
+    recallSweepsBtn: document.getElementById('recall-sweeps') as HTMLButtonElement,
+    recallModal: document.getElementById('recall-modal') as HTMLElement,
+    recallModalClose: document.getElementById('recall-modal-close') as HTMLButtonElement,
+    recallModalCancel: document.getElementById('recall-modal-cancel') as HTMLButtonElement,
+    sweepCount: document.getElementById('sweep-count') as HTMLElement,
+    sweepsList: document.getElementById('sweeps-list') as HTMLElement,
+    clearAllSweeps: document.getElementById('clear-all-sweeps') as HTMLButtonElement,
+    phaseToggle: document.getElementById('capture-phase-toggle') as HTMLInputElement,
+    smoothingSelect: document.getElementById('capture-smoothing-select') as HTMLSelectElement
   };
+  
+  // Store device information
+  let deviceInfo: any = { input: [], output: [] };
+  
+  // Routing matrices for input and output
+  let inputRoutingMatrix: RoutingMatrix | null = null;
+  let outputRoutingMatrix: RoutingMatrix | null = null;
   
   // Volume slider handlers
   elements.inputVolume.addEventListener('input', (e) => {
@@ -45,12 +75,80 @@ document.addEventListener('DOMContentLoaded', async () => {
     elements.outputVolumeValue.textContent = `${(e.target as HTMLInputElement).value}%`;
   });
   
+  // Update device info badges
+  function updateDeviceInfo(deviceName: string, isInput: boolean) {
+    const devices = isInput ? deviceInfo.input : deviceInfo.output;
+    const device = devices.find((d: any) => d.value === deviceName);
+    
+    if (device && device.channels !== undefined) {
+      const channelsBadge = isInput ? elements.inputChannelsInfo : elements.outputChannelsInfo;
+      const sampleRateBadge = isInput ? elements.inputSampleRate : elements.outputSampleRate;
+      
+      // Update channel count
+      channelsBadge.textContent = `${device.channels} ch`;
+      channelsBadge.classList.add('detected');
+      
+      // Update sample rate if available (default to 48kHz)
+      const sampleRate = device.sampleRate || 48000;
+      sampleRateBadge.textContent = sampleRate >= 1000 ? `${sampleRate / 1000}kHz` : `${sampleRate}Hz`;
+      
+      // Update or create routing matrix for this device
+      if (isInput) {
+        if (inputRoutingMatrix) {
+          inputRoutingMatrix.updateChannelCount(device.channels);
+        } else {
+          inputRoutingMatrix = new RoutingMatrix(device.channels);
+          inputRoutingMatrix.setOnRoutingChange((routing) => {
+            console.log('Input routing changed:', routing);
+            // Store routing configuration for use during capture
+          });
+        }
+      } else {
+        if (outputRoutingMatrix) {
+          outputRoutingMatrix.updateChannelCount(device.channels);
+        } else {
+          outputRoutingMatrix = new RoutingMatrix(device.channels);
+          outputRoutingMatrix.setOnRoutingChange((routing) => {
+            console.log('Output routing changed:', routing);
+            // Store routing configuration for use during capture
+          });
+        }
+      }
+    }
+  }
+  
+  // Device change handlers
+  elements.inputDevice.addEventListener('change', () => {
+    updateDeviceInfo(elements.inputDevice.value, true);
+  });
+  
+  elements.outputDevice.addEventListener('change', () => {
+    updateDeviceInfo(elements.outputDevice.value, false);
+  });
+  
+  // Routing button handlers
+  elements.inputRoutingBtn.addEventListener('click', () => {
+    if (inputRoutingMatrix) {
+      inputRoutingMatrix.show(elements.inputRoutingBtn);
+    } else {
+      showStatus('Please select an input device first', 'info');
+    }
+  });
+  
+  elements.outputRoutingBtn.addEventListener('click', () => {
+    if (outputRoutingMatrix) {
+      outputRoutingMatrix.show(elements.outputRoutingBtn);
+    } else {
+      showStatus('Please select an output device first', 'info');
+    }
+  });
+  
   // Show status message
   function showStatus(message: string, type: 'info' | 'success' | 'error' = 'info') {
     elements.statusMessage.textContent = message;
-    elements.statusMessage.className = `status-message show ${type}`;
+    elements.statusMessage.className = `capture-status ${type}`;
     setTimeout(() => {
-      elements.statusMessage.classList.remove('show');
+      elements.statusMessage.textContent = '';
     }, 5000);
   }
   
@@ -59,6 +157,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
       showStatus('Loading audio devices...', 'info');
       const devices = await captureController.getAudioDevices();
+      
+      // Parse device info and store it
+      deviceInfo.input = devices.input.map(device => {
+        const parsed = parseDeviceInfo(device.info || '');
+        return {
+          value: device.value,
+          label: device.label,
+          channels: parsed.channels,
+          sampleRate: parsed.sampleRate
+        };
+      });
+      
+      deviceInfo.output = devices.output.map(device => {
+        const parsed = parseDeviceInfo(device.info || '');
+        return {
+          value: device.value,
+          label: device.label,
+          channels: parsed.channels,
+          sampleRate: parsed.sampleRate
+        };
+      });
       
       // Clear and populate input devices
       elements.inputDevice.innerHTML = '';
@@ -84,6 +203,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         elements.outputDevice.appendChild(option);
       });
       
+      // Update badges for initially selected devices
+      if (elements.inputDevice.value) {
+        updateDeviceInfo(elements.inputDevice.value, true);
+      }
+      if (elements.outputDevice.value) {
+        updateDeviceInfo(elements.outputDevice.value, false);
+      }
+      
       showStatus('Audio devices loaded successfully', 'success');
     } catch (error) {
       console.error('Failed to load devices:', error);
@@ -91,21 +218,42 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
+  // Parse device info string (e.g., "2ch 48kHz" or "8 ch")
+  function parseDeviceInfo(info: string): { channels?: number; sampleRate?: number } {
+    const result: { channels?: number; sampleRate?: number } = {};
+    
+    // Parse channel count (e.g., "2ch", "8 ch", "2 ch")
+    const channelMatch = info.match(/(\d+)\s*ch/i);
+    if (channelMatch) {
+      result.channels = parseInt(channelMatch[1]);
+    }
+    
+    // Parse sample rate (e.g., "48kHz", "48000Hz", "96 kHz")
+    const sampleRateMatch = info.match(/(\d+(?:\.\d+)?)\s*k?Hz/i);
+    if (sampleRateMatch) {
+      const value = parseFloat(sampleRateMatch[1]);
+      result.sampleRate = info.toLowerCase().includes('khz') ? value * 1000 : value;
+    }
+    
+    return result;
+  }
+  
   // Start capture
   async function startCapture() {
     try {
-      // Disable start button, enable stop button
+      // Disable start button, show stop button
       elements.startCapture.disabled = true;
+      elements.stopCapture.classList.remove('hidden');
       elements.stopCapture.disabled = false;
-      elements.exportCsv.disabled = true;
+      elements.exportCsv.classList.add('hidden');
       
       // Show progress
-      elements.captureProgress.classList.add('show');
+      elements.captureProgress.classList.remove('hidden');
       elements.progressFill.style.width = '0%';
       elements.progressFill.textContent = '0%';
       
       // Hide previous results
-      elements.resultsContainer.classList.remove('show');
+      elements.resultsContainer.classList.add('hidden');
       
       showStatus('Starting capture...', 'info');
       
@@ -160,10 +308,66 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         };
         
+        // Debug: Log captured data statistics
+        console.log('=== CAPTURE DATA ANALYSIS ===');
+        console.log('Frequencies:', result.frequencies.length, 'points');
+        console.log('First 5 frequencies:', result.frequencies.slice(0, 5));
+        console.log('Magnitudes:', result.magnitudes.length, 'points');
+        console.log('First 5 magnitudes:', result.magnitudes.slice(0, 5));
+        console.log('Magnitude range:', Math.min(...result.magnitudes), 'to', Math.max(...result.magnitudes), 'dB');
+        
+        // Check if signal level is too low
+        const maxMagnitude = Math.max(...currentCaptureData.magnitudes);
+        const minMagnitude = Math.min(...currentCaptureData.magnitudes);
+        const avgMagnitude = currentCaptureData.magnitudes.reduce((a: number, b: number) => a + b, 0) / currentCaptureData.magnitudes.length;
+        console.log('Signal statistics:');
+        console.log('  Max:', maxMagnitude.toFixed(1), 'dB');
+        console.log('  Min:', minMagnitude.toFixed(1), 'dB');
+        console.log('  Avg:', avgMagnitude.toFixed(1), 'dB');
+        
+        if (maxMagnitude < -60) {
+          const continueAnyway = confirm(
+            `⚠️ Low Signal Level Warning\n\n` +
+            `Maximum SPL captured: ${maxMagnitude.toFixed(1)} dB\n\n` +
+            `This is very low and may indicate:\n` +
+            `• Output volume is muted or too low\n` +
+            `• Input gain is too low\n` +
+            `• Microphone is not positioned correctly\n\n` +
+            `Please increase the volume and try again.\n\n` +
+            `Do you want to save this sweep anyway?`
+          );
+          
+          if (!continueAnyway) {
+            showStatus('Capture discarded due to low signal level', 'info');
+            return;
+          }
+        }
+        
+        // Save to database
+        try {
+          await sweepDatabase.saveSweep({
+            timestamp: currentCaptureData.metadata.timestamp,
+            deviceName: currentCaptureData.metadata.deviceName,
+            signalType: currentCaptureData.metadata.signalType,
+            duration: currentCaptureData.metadata.duration,
+            sampleRate: currentCaptureData.metadata.sampleRate,
+            outputChannel: currentCaptureData.metadata.outputChannel,
+            frequencies: currentCaptureData.frequencies,
+            magnitudes: currentCaptureData.magnitudes,
+            phases: currentCaptureData.phases,
+            inputRouting: inputRoutingMatrix?.getRouting(),
+            outputRouting: outputRoutingMatrix?.getRouting()
+          });
+          console.log('Sweep saved to database');
+        } catch (error) {
+          console.error('Failed to save sweep to database:', error);
+        }
+        
         // Display results
         displayResults(currentCaptureData);
         
-        // Enable export button
+        // Show and enable export button
+        elements.exportCsv.classList.remove('hidden');
         elements.exportCsv.disabled = false;
       } else {
         throw new Error(result.error || 'Capture failed');
@@ -174,11 +378,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     } finally {
       // Reset buttons
       elements.startCapture.disabled = false;
+      elements.stopCapture.classList.add('hidden');
       elements.stopCapture.disabled = true;
       
       // Hide progress after a moment
       setTimeout(() => {
-        elements.captureProgress.classList.remove('show');
+        elements.captureProgress.classList.add('hidden');
       }, 2000);
     }
   }
@@ -190,16 +395,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Reset buttons
     elements.startCapture.disabled = false;
+    elements.stopCapture.classList.add('hidden');
     elements.stopCapture.disabled = true;
-    elements.captureProgress.classList.remove('show');
+    elements.captureProgress.classList.add('hidden');
   }
   
   // Display results
   function displayResults(data: any) {
-    if (!data || !data.frequencies || !data.magnitudes) return;
+    if (!data || !data.frequencies || !data.magnitudes) {
+      console.error('displayResults: Invalid data', data);
+      return;
+    }
     
-    // Show results container
-    elements.resultsContainer.classList.add('show');
+    console.log('displayResults called with:', {
+      frequencies: data.frequencies.length,
+      magnitudes: data.magnitudes.length,
+      phases: data.phases?.length || 0
+    });
+    
+    // Hide placeholder, show results container
+    elements.graphPlaceholder.classList.add('hidden');
+    elements.resultsContainer.classList.remove('hidden');
     
     // Display info
     elements.resultsInfo.innerHTML = `
@@ -211,17 +427,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     // Initialize graph renderer if needed
     if (!graphRenderer) {
+      console.log('Initializing graph renderer...');
       graphRenderer = new CaptureGraphRenderer(elements.captureGraph);
     }
     
-    // Render the graph
-    graphRenderer.renderGraph({
+    // Apply smoothing based on current setting
+    const octaveFraction = parseInt(elements.smoothingSelect.value);
+    const smoothedMagnitudes = CaptureGraphRenderer.applySmoothing(
+      data.frequencies,
+      data.magnitudes,
+      octaveFraction
+    );
+    
+    let smoothedPhase: number[] = [];
+    if (data.phases && data.phases.length > 0) {
+      smoothedPhase = CaptureGraphRenderer.applyPhaseSmoothing(
+        data.frequencies,
+        data.phases,
+        octaveFraction
+      );
+    }
+    
+    // Prepare graph data
+    const graphData = {
       frequencies: data.frequencies,
       rawMagnitudes: data.magnitudes,
-      smoothedMagnitudes: data.magnitudes, // Use same data for now
+      smoothedMagnitudes: smoothedMagnitudes,
       rawPhase: data.phases || [],
-      smoothedPhase: data.phases || []
-    });
+      smoothedPhase: smoothedPhase,
+      outputChannel: data.metadata.outputChannel
+    };
+    
+    console.log('Rendering graph with data:', graphData);
+    
+    // Render the graph
+    graphRenderer.renderGraph(graphData);
+    
+    console.log('Graph rendering complete');
   }
   
   // Export CSV
@@ -249,13 +491,223 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   }
   
+  // Recall modal functions
+  async function openRecallModal() {
+    console.log('Opening recall modal...');
+    elements.recallModal.classList.remove('hidden');
+    await loadSweepsList();
+  }
+  
+  function closeRecallModal() {
+    elements.recallModal.classList.add('hidden');
+  }
+  
+  async function loadSweepsList() {
+    try {
+      const sweeps = await sweepDatabase.getAllSweeps();
+      const count = sweeps.length;
+      
+      // Update count
+      elements.sweepCount.textContent = `${count} sweep${count !== 1 ? 's' : ''} saved`;
+      
+      // Clear list
+      elements.sweepsList.innerHTML = '';
+      
+      if (count === 0) {
+        elements.sweepsList.innerHTML = `
+          <div class="sweeps-empty">
+            <p>No saved sweeps yet. Capture a sweep to save it automatically.</p>
+          </div>
+        `;
+        return;
+      }
+      
+      // Render sweep items
+      sweeps.forEach(sweep => {
+        const item = createSweepItem(sweep);
+        elements.sweepsList.appendChild(item);
+      });
+    } catch (error) {
+      console.error('Failed to load sweeps:', error);
+      showStatus('Failed to load saved sweeps', 'error');
+    }
+  }
+  
+  function createSweepItem(sweep: SweepRecord): HTMLElement {
+    const item = document.createElement('div');
+    item.className = 'sweep-item';
+    
+    const timestamp = new Date(sweep.timestamp);
+    const dateStr = timestamp.toLocaleDateString();
+    const timeStr = timestamp.toLocaleTimeString();
+    
+    item.innerHTML = `
+      <div class="sweep-info">
+        <div class="sweep-title">${sweep.deviceName}</div>
+        <div class="sweep-details">
+          <span class="sweep-detail">📅 ${dateStr} ${timeStr}</span>
+          <span class="sweep-detail">🎵 ${sweep.signalType}</span>
+          <span class="sweep-detail">⏱️ ${sweep.duration}s</span>
+          <span class="sweep-detail">🔊 ${sweep.outputChannel}</span>
+          <span class="sweep-detail">📊 ${sweep.frequencies.length} points</span>
+        </div>
+      </div>
+      <div class="sweep-actions">
+        <button class="btn btn-primary btn-sm load-sweep-btn" data-id="${sweep.id}">Load</button>
+        <button class="btn btn-secondary btn-sm export-sweep-btn" data-id="${sweep.id}">Export</button>
+        <button class="btn btn-danger btn-sm delete-sweep-btn" data-id="${sweep.id}">Delete</button>
+      </div>
+    `;
+    
+    // Add event listeners
+    const loadBtn = item.querySelector('.load-sweep-btn') as HTMLButtonElement;
+    const exportBtn = item.querySelector('.export-sweep-btn') as HTMLButtonElement;
+    const deleteBtn = item.querySelector('.delete-sweep-btn') as HTMLButtonElement;
+    
+    loadBtn.addEventListener('click', () => loadSweep(sweep));
+    exportBtn.addEventListener('click', () => exportSweep(sweep));
+    deleteBtn.addEventListener('click', () => deleteSweep(sweep.id!));
+    
+    return item;
+  }
+  
+  function loadSweep(sweep: SweepRecord) {
+    // Load sweep data into current view
+    currentCaptureData = {
+      frequencies: sweep.frequencies,
+      magnitudes: sweep.magnitudes,
+      phases: sweep.phases,
+      metadata: {
+        timestamp: new Date(sweep.timestamp),
+        deviceName: sweep.deviceName,
+        signalType: sweep.signalType,
+        duration: sweep.duration,
+        sampleRate: sweep.sampleRate,
+        outputChannel: sweep.outputChannel
+      }
+    };
+    
+    // Display results
+    displayResults(currentCaptureData);
+    
+    // Show export button
+    elements.exportCsv.classList.remove('hidden');
+    elements.exportCsv.disabled = false;
+    
+    // Close modal
+    closeRecallModal();
+    
+    showStatus('Sweep loaded successfully', 'success');
+  }
+  
+  function exportSweep(sweep: SweepRecord) {
+    try {
+      const exportData = {
+        frequencies: sweep.frequencies,
+        rawMagnitudes: sweep.magnitudes,
+        smoothedMagnitudes: sweep.magnitudes,
+        rawPhase: sweep.phases || [],
+        smoothedPhase: sweep.phases || [],
+        metadata: {
+          timestamp: new Date(sweep.timestamp),
+          deviceName: sweep.deviceName,
+          signalType: sweep.signalType,
+          duration: sweep.duration,
+          sampleRate: sweep.sampleRate,
+          outputChannel: sweep.outputChannel
+        }
+      };
+      
+      CSVExporter.exportToCSV(exportData);
+      showStatus('Sweep exported successfully', 'success');
+    } catch (error) {
+      console.error('Export error:', error);
+      showStatus(`Export failed: ${(error as Error).message}`, 'error');
+    }
+  }
+  
+  async function deleteSweep(id: number) {
+    if (!confirm('Are you sure you want to delete this sweep?')) {
+      return;
+    }
+    
+    try {
+      await sweepDatabase.deleteSweep(id);
+      await loadSweepsList();
+      showStatus('Sweep deleted', 'success');
+    } catch (error) {
+      console.error('Delete error:', error);
+      showStatus('Failed to delete sweep', 'error');
+    }
+  }
+  
+  async function clearAllSweeps() {
+    if (!confirm('Are you sure you want to delete ALL saved sweeps? This cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      await sweepDatabase.clearAll();
+      await loadSweepsList();
+      showStatus('All sweeps cleared', 'success');
+    } catch (error) {
+      console.error('Clear error:', error);
+      showStatus('Failed to clear sweeps', 'error');
+    }
+  }
+  
   // Event handlers
   elements.startCapture.addEventListener('click', startCapture);
   elements.stopCapture.addEventListener('click', stopCapture);
   elements.exportCsv.addEventListener('click', exportCsv);
   elements.refreshDevices.addEventListener('click', loadDevices);
   
-  // Initialize
+  // Debug recall button
+  console.log('Recall button element:', elements.recallSweepsBtn);
+  if (elements.recallSweepsBtn) {
+    elements.recallSweepsBtn.addEventListener('click', () => {
+      console.log('Recall button clicked!');
+      openRecallModal();
+    });
+    console.log('Recall button event listener attached');
+  } else {
+    console.error('Recall button not found in DOM!');
+  }
+  
+  elements.recallModalClose.addEventListener('click', closeRecallModal);
+  elements.recallModalCancel.addEventListener('click', closeRecallModal);
+  elements.clearAllSweeps.addEventListener('click', clearAllSweeps);
+  
+  // Close modal on background click
+  elements.recallModal.addEventListener('click', (e) => {
+    if (e.target === elements.recallModal) {
+      closeRecallModal();
+    }
+  });
+  
+  // Graph control handlers
+  elements.phaseToggle.addEventListener('change', () => {
+    if (graphRenderer) {
+      const showPhase = elements.phaseToggle.checked;
+      graphRenderer.setPhaseVisibility(showPhase);
+      
+      // Re-render if we have data
+      if (currentCaptureData) {
+        displayResults(currentCaptureData);
+      } else {
+        graphRenderer.renderPlaceholder();
+      }
+    }
+  });
+  
+  elements.smoothingSelect.addEventListener('change', () => {
+    // Re-render with new smoothing if we have data
+    if (currentCaptureData) {
+      displayResults(currentCaptureData);
+    }
+  });
+  
+  // Load devices on startup
   await loadDevices();
   
   console.log('Audio Capture Demo initialized');

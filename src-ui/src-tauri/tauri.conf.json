@@ -51,11 +51,11 @@
     },
     "macOS": {
       "entitlements": "./Entitlements.plist",
-      "exceptionDomain": "",
-      "frameworks": [],
       "minimumSystemVersion": "10.15",
+      "signingIdentity": "Developer ID Application: Pierre Aubert (RTH7ZJXLT6)",
       "providerShortName": null,
-      "signingIdentity": "pierre0aubert@gmail.com (YU8PC9PYUP)"
+      "exceptionDomain": "",
+      "frameworks": []
     },
     "windows": {
       "certificateThumbprint": null,

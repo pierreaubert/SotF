@@ -136,15 +136,24 @@ describe('csv-export', () => {
   });
 
   describe('exportToCSV', () => {
+    let linkElement: any;
+
     beforeEach(() => {
+      // Create a mock link element that we can track
+      linkElement = {
+        setAttribute: vi.fn(),
+        click: vi.fn(),
+        href: '',
+        download: '',
+        style: { display: '' },
+      };
+
       // Mock DOM methods
       global.document.createElement = vi.fn((tag: string) => {
-        const element = {
-          setAttribute: vi.fn(),
-          click: vi.fn(),
-          style: {},
-        };
-        return element as any;
+        if (tag === 'a') {
+          return linkElement;
+        }
+        return {} as any;
       });
 
       global.document.body.appendChild = vi.fn();
@@ -165,11 +174,11 @@ describe('csv-export', () => {
       const createElement = global.document.createElement as any;
       expect(createElement).toHaveBeenCalledWith('a');
 
-      const linkElement = createElement.mock.results[0].value;
-      expect(linkElement.setAttribute).toHaveBeenCalledWith('download', expect.stringContaining('2025-01-15'));
-      expect(linkElement.setAttribute).toHaveBeenCalledWith('download', expect.stringContaining('both'));
-      expect(linkElement.setAttribute).toHaveBeenCalledWith('download', expect.stringContaining('sweep'));
-      expect(linkElement.setAttribute).toHaveBeenCalledWith('download', expect.stringMatching(/\.csv$/));
+      // Check the download attribute was set correctly
+      expect(linkElement.download).toContain('2025-01-15');
+      expect(linkElement.download).toContain('both');
+      expect(linkElement.download).toContain('sweep');
+      expect(linkElement.download).toMatch(/\.csv$/);
     });
 
     it('should create blob with correct content type', () => {
@@ -181,21 +190,43 @@ describe('csv-export', () => {
       );
     });
 
-    it('should trigger click on link element', () => {
-      CSVExporter.exportToCSV(mockExportData);
+    it('should trigger click on link element', async () => {
+      // Mock setTimeout to execute immediately
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = ((fn: any) => {
+        fn();
+        return 0 as any;
+      }) as any;
 
-      const createElement = global.document.createElement as any;
-      const linkElement = createElement.mock.results[0].value;
+      try {
+        CSVExporter.exportToCSV(mockExportData);
 
-      expect(linkElement.click).toHaveBeenCalled();
+        expect(linkElement.click).toHaveBeenCalled();
+      } finally {
+        global.setTimeout = originalSetTimeout;
+      }
     });
 
     it('should clean up after download', () => {
-      CSVExporter.exportToCSV(mockExportData);
+      // Mock setTimeout to execute immediately
+      const originalSetTimeout = global.setTimeout;
+      global.setTimeout = ((fn: any) => {
+        fn();
+        return 0 as any;
+      }) as any;
 
-      expect(global.document.body.appendChild).toHaveBeenCalled();
-      expect(global.document.body.removeChild).toHaveBeenCalled();
-      expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+      try {
+        CSVExporter.exportToCSV(mockExportData);
+
+        // Verify appendChild is called immediately
+        expect(global.document.body.appendChild).toHaveBeenCalled();
+
+        // With immediate setTimeout, cleanup should have happened
+        expect(global.document.body.removeChild).toHaveBeenCalled();
+        expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+      } finally {
+        global.setTimeout = originalSetTimeout;
+      }
     });
   });
 

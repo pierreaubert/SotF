@@ -3,16 +3,14 @@ import { CaptureController } from './capture-controller';
 import { CaptureGraphRenderer } from './capture-graph';
 import { CSVExporter } from './csv-export';
 import { RoutingMatrix } from '@audio-player/audio-routing';
-import { SweepDatabase, type SweepRecord } from './sweep-database';
+import { CaptureStorage, type StoredCapture } from './capture-storage';
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('Audio Capture Demo initializing...');
   
-  // Initialize controller and database
+  // Initialize controller
   const captureController = new CaptureController();
-  const sweepDatabase = new SweepDatabase();
-  await sweepDatabase.init();
   
   let currentCaptureData: any = null;
   let graphRenderer: CaptureGraphRenderer | null = null;
@@ -356,9 +354,26 @@ document.addEventListener('DOMContentLoaded', async () => {
           }
         }
         
-        // Save to database
+        // Compute smoothed magnitudes for storage
+        const octaveFraction = parseInt(elements.smoothingSelect.value) || 3;
+        const smoothedMags = CaptureGraphRenderer.applySmoothing(
+          currentCaptureData.frequencies,
+          currentCaptureData.magnitudes,
+          octaveFraction
+        );
+        
+        let smoothedPhases: number[] = [];
+        if (currentCaptureData.phases && currentCaptureData.phases.length > 0) {
+          smoothedPhases = CaptureGraphRenderer.applyPhaseSmoothing(
+            currentCaptureData.frequencies,
+            currentCaptureData.phases,
+            octaveFraction
+          );
+        }
+        
+        // Save to storage
         try {
-          await sweepDatabase.saveSweep({
+          CaptureStorage.saveCapture({
             timestamp: currentCaptureData.metadata.timestamp,
             deviceName: currentCaptureData.metadata.deviceName,
             signalType: currentCaptureData.metadata.signalType,
@@ -366,14 +381,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             sampleRate: currentCaptureData.metadata.sampleRate,
             outputChannel: currentCaptureData.metadata.outputChannel,
             frequencies: currentCaptureData.frequencies,
-            magnitudes: currentCaptureData.magnitudes,
-            phases: currentCaptureData.phases,
-            inputRouting: inputRoutingMatrix?.getRouting(),
-            outputRouting: outputRoutingMatrix?.getRouting()
+            rawMagnitudes: currentCaptureData.magnitudes,
+            smoothedMagnitudes: smoothedMags,
+            rawPhase: currentCaptureData.phases || [],
+            smoothedPhase: smoothedPhases
           });
-          console.log('Sweep saved to database');
+          console.log('Capture saved to localStorage');
         } catch (error) {
-          console.error('Failed to save sweep to database:', error);
+          console.error('Failed to save capture to storage:', error);
         }
         
         // Display results
@@ -517,11 +532,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   async function loadSweepsList() {
     try {
-      const sweeps = await sweepDatabase.getAllSweeps();
-      const count = sweeps.length;
+      const captures = CaptureStorage.getAllCaptures();
+      const count = captures.length;
       
       // Update count
-      elements.sweepCount.textContent = `${count} sweep${count !== 1 ? 's' : ''} saved`;
+      elements.sweepCount.textContent = `${count} record${count !== 1 ? 's' : ''} saved`;
       
       // Clear list
       elements.sweepsList.innerHTML = '';
@@ -529,46 +544,46 @@ document.addEventListener('DOMContentLoaded', async () => {
       if (count === 0) {
         elements.sweepsList.innerHTML = `
           <div class="sweeps-empty">
-            <p>No saved sweeps yet. Capture a sweep to save it automatically.</p>
+            <p>No saved captures yet. Capture audio to save it automatically.</p>
           </div>
         `;
         return;
       }
       
-      // Render sweep items
-      sweeps.forEach(sweep => {
-        const item = createSweepItem(sweep);
+      // Render capture items
+      captures.forEach(capture => {
+        const item = createSweepItem(capture);
         elements.sweepsList.appendChild(item);
       });
     } catch (error) {
-      console.error('Failed to load sweeps:', error);
-      showStatus('Failed to load saved sweeps', 'error');
+      console.error('Failed to load captures:', error);
+      showStatus('Failed to load saved captures', 'error');
     }
   }
   
-  function createSweepItem(sweep: SweepRecord): HTMLElement {
+  function createSweepItem(capture: StoredCapture): HTMLElement {
     const item = document.createElement('div');
     item.className = 'sweep-item';
     
-    const timestamp = new Date(sweep.timestamp);
+    const timestamp = new Date(capture.timestamp);
     const dateStr = timestamp.toLocaleDateString();
     const timeStr = timestamp.toLocaleTimeString();
     
     item.innerHTML = `
       <div class="sweep-info">
-        <div class="sweep-title">${sweep.deviceName}</div>
+        <div class="sweep-title">${capture.name}</div>
         <div class="sweep-details">
           <span class="sweep-detail">📅 ${dateStr} ${timeStr}</span>
-          <span class="sweep-detail">🎵 ${sweep.signalType}</span>
-          <span class="sweep-detail">⏱️ ${sweep.duration}s</span>
-          <span class="sweep-detail">🔊 ${sweep.outputChannel}</span>
-          <span class="sweep-detail">📊 ${sweep.frequencies.length} points</span>
+          <span class="sweep-detail">🎵 ${capture.signalType}</span>
+          <span class="sweep-detail">⏱️ ${capture.duration}s</span>
+          <span class="sweep-detail">🔊 ${capture.outputChannel}</span>
+          <span class="sweep-detail">📊 ${capture.frequencies.length} points</span>
         </div>
       </div>
       <div class="sweep-actions">
-        <button class="btn btn-primary btn-sm load-sweep-btn" data-id="${sweep.id}">Load</button>
-        <button class="btn btn-secondary btn-sm export-sweep-btn" data-id="${sweep.id}">Export</button>
-        <button class="btn btn-danger btn-sm delete-sweep-btn" data-id="${sweep.id}">Delete</button>
+        <button class="btn btn-primary btn-sm load-sweep-btn" data-id="${capture.id}">Load</button>
+        <button class="btn btn-secondary btn-sm export-sweep-btn" data-id="${capture.id}">Export</button>
+        <button class="btn btn-danger btn-sm delete-sweep-btn" data-id="${capture.id}">Delete</button>
       </div>
     `;
     
@@ -577,26 +592,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     const exportBtn = item.querySelector('.export-sweep-btn') as HTMLButtonElement;
     const deleteBtn = item.querySelector('.delete-sweep-btn') as HTMLButtonElement;
     
-    loadBtn.addEventListener('click', () => loadSweep(sweep));
-    exportBtn.addEventListener('click', () => exportSweep(sweep));
-    deleteBtn.addEventListener('click', () => deleteSweep(sweep.id!));
+    loadBtn.addEventListener('click', () => loadSweep(capture));
+    exportBtn.addEventListener('click', () => exportSweep(capture));
+    deleteBtn.addEventListener('click', () => deleteSweep(capture.id));
     
     return item;
   }
   
-  function loadSweep(sweep: SweepRecord) {
-    // Load sweep data into current view
+  function loadSweep(capture: StoredCapture) {
+    // Load capture data into current view
     currentCaptureData = {
-      frequencies: sweep.frequencies,
-      magnitudes: sweep.magnitudes,
-      phases: sweep.phases,
+      frequencies: capture.frequencies,
+      magnitudes: capture.rawMagnitudes,
+      phases: capture.rawPhase,
       metadata: {
-        timestamp: new Date(sweep.timestamp),
-        deviceName: sweep.deviceName,
-        signalType: sweep.signalType,
-        duration: sweep.duration,
-        sampleRate: sweep.sampleRate,
-        outputChannel: sweep.outputChannel
+        timestamp: new Date(capture.timestamp),
+        deviceName: capture.deviceName,
+        signalType: capture.signalType,
+        duration: capture.duration,
+        sampleRate: capture.sampleRate,
+        outputChannel: capture.outputChannel
       }
     };
     
@@ -610,62 +625,62 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Close modal
     closeRecallModal();
     
-    showStatus('Sweep loaded successfully', 'success');
+    showStatus('Capture loaded successfully', 'success');
   }
   
-  function exportSweep(sweep: SweepRecord) {
+  function exportSweep(capture: StoredCapture) {
     try {
       const exportData = {
-        frequencies: sweep.frequencies,
-        rawMagnitudes: sweep.magnitudes,
-        smoothedMagnitudes: sweep.magnitudes,
-        rawPhase: sweep.phases || [],
-        smoothedPhase: sweep.phases || [],
+        frequencies: capture.frequencies,
+        rawMagnitudes: capture.rawMagnitudes,
+        smoothedMagnitudes: capture.smoothedMagnitudes,
+        rawPhase: capture.rawPhase,
+        smoothedPhase: capture.smoothedPhase,
         metadata: {
-          timestamp: new Date(sweep.timestamp),
-          deviceName: sweep.deviceName,
-          signalType: sweep.signalType,
-          duration: sweep.duration,
-          sampleRate: sweep.sampleRate,
-          outputChannel: sweep.outputChannel
+          timestamp: new Date(capture.timestamp),
+          deviceName: capture.deviceName,
+          signalType: capture.signalType,
+          duration: capture.duration,
+          sampleRate: capture.sampleRate,
+          outputChannel: capture.outputChannel
         }
       };
       
       CSVExporter.exportToCSV(exportData);
-      showStatus('Sweep exported successfully', 'success');
+      showStatus('Capture exported successfully', 'success');
     } catch (error) {
       console.error('Export error:', error);
       showStatus(`Export failed: ${(error as Error).message}`, 'error');
     }
   }
   
-  async function deleteSweep(id: number) {
-    if (!confirm('Are you sure you want to delete this sweep?')) {
+  function deleteSweep(id: string) {
+    if (!confirm('Are you sure you want to delete this capture?')) {
       return;
     }
     
     try {
-      await sweepDatabase.deleteSweep(id);
-      await loadSweepsList();
-      showStatus('Sweep deleted', 'success');
+      CaptureStorage.deleteCapture(id);
+      loadSweepsList();
+      showStatus('Capture deleted', 'success');
     } catch (error) {
       console.error('Delete error:', error);
-      showStatus('Failed to delete sweep', 'error');
+      showStatus('Failed to delete capture', 'error');
     }
   }
   
-  async function clearAllSweeps() {
-    if (!confirm('Are you sure you want to delete ALL saved sweeps? This cannot be undone.')) {
+  function clearAllSweeps() {
+    if (!confirm('Are you sure you want to delete ALL saved captures? This cannot be undone.')) {
       return;
     }
     
     try {
-      await sweepDatabase.clearAll();
-      await loadSweepsList();
-      showStatus('All sweeps cleared', 'success');
+      CaptureStorage.clearAll();
+      loadSweepsList();
+      showStatus('All captures cleared', 'success');
     } catch (error) {
       console.error('Clear error:', error);
-      showStatus('Failed to clear sweeps', 'error');
+      showStatus('Failed to clear captures', 'error');
     }
   }
   

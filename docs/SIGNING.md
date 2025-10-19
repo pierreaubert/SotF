@@ -69,15 +69,15 @@ Your app needs audio recording permissions. Update `src-tauri/Entitlements.plist
     <!-- Required for sandboxed apps -->
     <key>com.apple.security.app-sandbox</key>
     <true/>
-    
+
     <!-- Audio device access -->
     <key>com.apple.security.device.audio-input</key>
     <true/>
-    
+
     <!-- Network access (for API calls) -->
     <key>com.apple.security.network.client</key>
     <true/>
-    
+
     <!-- File access (for saving/loading files) -->
     <key>com.apple.security.files.user-selected.read-write</key>
     <true/>
@@ -151,17 +151,14 @@ If automatic notarization fails, you can manually notarize:
 
 ```bash
 # Submit for notarization
-xcrun notarytool submit \
-  src-tauri/target/release/bundle/dmg/autoeq-app_*.dmg \
-  --keychain-profile "autoeq-notarization" \
-  --wait
+xcrun notarytool submit ./target/release/bundle/dmg/autoeq-app_*.dmg --keychain-profile "autoeq-notarization" --wait
 
 # Check status
 xcrun notarytool log <submission-id> \
   --keychain-profile "autoeq-notarization"
 
 # Staple the notarization ticket (after approval)
-xcrun stapler staple src-tauri/target/release/bundle/dmg/autoeq-app_*.dmg
+xcrun stapler staple ./target/release/bundle/dmg/autoeq-app_*.dmg
 ```
 
 ## Step 6: Verify Signing

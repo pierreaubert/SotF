@@ -69,7 +69,7 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
                     let mut supported_configs = Vec::new();
                     if let Ok(configs) = device.supported_input_configs() {
                         for config in configs {
-                            let config_range = config.clone();
+                            let config_range = config;
                             // Add min and max sample rate configs
                             for sample_rate in [
                                 config_range.min_sample_rate().0,
@@ -158,7 +158,7 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
                     let mut supported_configs = Vec::new();
                     if let Ok(configs) = device.supported_output_configs() {
                         for config in configs {
-                            let config_range = config.clone();
+                            let config_range = config;
                             // Add common sample rates
                             for sample_rate in [
                                 44100,
@@ -248,8 +248,8 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
     devices_map.insert("output".to_string(), output_devices);
 
     // Check if no devices were found at all
-    if devices_map.get("input").map_or(true, |v| v.is_empty())
-        && devices_map.get("output").map_or(true, |v| v.is_empty())
+    if devices_map.get("input").is_none_or(|v| v.is_empty())
+        && devices_map.get("output").is_none_or(|v| v.is_empty())
     {
         eprintln!("[AUDIO WARNING] No audio devices found on the system");
     }
@@ -444,22 +444,20 @@ pub async fn get_device_properties(
                 }));
             }
         }
-    } else {
-        if let Ok(configs) = device.supported_output_configs() {
-            for config in configs {
-                config_ranges.push(serde_json::json!({
-                    "min_sample_rate": config.min_sample_rate().0,
-                    "max_sample_rate": config.max_sample_rate().0,
-                    "channels": config.channels(),
-                    "sample_format": format_to_string(config.sample_format()),
-                    "buffer_size_range": match config.buffer_size() {
-                        cpal::SupportedBufferSize::Range { min, max } => {
-                            serde_json::json!({ "min": min, "max": max })
-                        },
-                        cpal::SupportedBufferSize::Unknown => serde_json::json!("unknown"),
+    } else if let Ok(configs) = device.supported_output_configs() {
+        for config in configs {
+            config_ranges.push(serde_json::json!({
+                "min_sample_rate": config.min_sample_rate().0,
+                "max_sample_rate": config.max_sample_rate().0,
+                "channels": config.channels(),
+                "sample_format": format_to_string(config.sample_format()),
+                "buffer_size_range": match config.buffer_size() {
+                    cpal::SupportedBufferSize::Range { min, max } => {
+                        serde_json::json!({ "min": min, "max": max })
                     },
-                }));
-            }
+                    cpal::SupportedBufferSize::Unknown => serde_json::json!("unknown"),
+                },
+            }));
         }
     }
     properties["supported_config_ranges"] = serde_json::json!(config_ranges);
@@ -479,20 +477,18 @@ pub async fn get_device_properties(
                 },
             });
         }
-    } else {
-        if let Ok(default_config) = device.default_output_config() {
-            properties["default_config"] = serde_json::json!({
-                "sample_rate": default_config.sample_rate().0,
-                "channels": default_config.channels(),
-                "sample_format": format_to_string(default_config.sample_format()),
-                "buffer_size": match default_config.buffer_size() {
-                    cpal::SupportedBufferSize::Range { min, max } => {
-                        serde_json::json!({ "min": min, "max": max })
-                    },
-                    cpal::SupportedBufferSize::Unknown => serde_json::json!("unknown"),
+    } else if let Ok(default_config) = device.default_output_config() {
+        properties["default_config"] = serde_json::json!({
+            "sample_rate": default_config.sample_rate().0,
+            "channels": default_config.channels(),
+            "sample_format": format_to_string(default_config.sample_format()),
+            "buffer_size": match default_config.buffer_size() {
+                cpal::SupportedBufferSize::Range { min, max } => {
+                    serde_json::json!({ "min": min, "max": max })
                 },
-            });
-        }
+                cpal::SupportedBufferSize::Unknown => serde_json::json!("unknown"),
+            },
+        });
     }
 
     Ok(properties)

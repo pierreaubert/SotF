@@ -911,6 +911,7 @@ input[type="checkbox"] {
 }
 
 .capture-device-select,
+.output-device-select,
 .output-channel-select,
 .capture-sample-rate-select,
 .signal-type-select,
@@ -922,6 +923,13 @@ input[type="checkbox"] {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 14px;
+}
+
+/* Device selects should fill their container */
+.capture-device-group .capture-device-select,
+.capture-device-group .output-device-select {
+  width: 100%;
+  max-width: 100%;
 }
 
 .refresh-devices-btn {
@@ -1517,7 +1525,48 @@ input[type="checkbox"] {
   letter-spacing: 0.5px;
 }
 
-/* Label with badge container - badge on same line as label */
+/* Device control group - fixed width for alignment */
+.capture-device-group {
+  width: 220px;
+  min-width: 220px;
+  max-width: 220px;
+  flex: 0 0 220px;
+}
+
+/* Device info row - groups label, badges, and routing button */
+.device-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs);
+  min-height: 24px;
+  padding: 4px 8px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  width: 100%;
+}
+
+.device-info-row label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 0;
+  flex-shrink: 0;
+}
+
+/* Device info badges - packs badges and routing button together */
+.device-info-badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+/* Legacy support for old class names */
 .label-with-badge {
   display: flex;
   justify-content: space-between;
@@ -1527,7 +1576,6 @@ input[type="checkbox"] {
   max-width: 100%;
 }
 
-/* Badge group container - packs badge and routing button together */
 .badge-group {
   display: inline-flex;
   align-items: center;
@@ -1638,6 +1686,11 @@ input[type="checkbox"] {
 
 /* Dark mode adjustments */
 @media (prefers-color-scheme: dark) {
+  .device-info-row {
+    background: rgba(36, 37, 41, 0.6);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
   .capture-control-group select.device-success {
     border-color: var(--success-color);
     box-shadow: 0 0 0 2px rgba(87, 242, 135, 0.2);
@@ -2268,6 +2321,34 @@ input[type="checkbox"] {
   color: var(--text-primary);
   font-size: 11px;
   cursor: pointer;
+}
+
+.capture-smoothing-select:focus {
+  outline: none;
+  border-color: var(--button-primary);
+}
+
+/* Dark mode adjustments for graph controls */
+@media (prefers-color-scheme: dark) {
+  .capture-graph-header {
+    background: rgba(36, 37, 41, 0.95);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  }
+  
+  .capture-smoothing-select {
+    background: var(--bg-secondary);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+  
+  .capture-smoothing-select:hover {
+    border-color: rgba(255, 255, 255, 0.2);
+  }
+  
+  .capture-smoothing-select:focus {
+    border-color: var(--button-primary);
+    box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
+  }
 }
 
 .capture-modal-graph {

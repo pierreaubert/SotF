@@ -11,31 +11,28 @@ default:
 # PROD
 # ----------------------------------------------------------------------
 
+alias build := prod
+
 prod:
-	npm run tauri build
+	cargo build --release
+	cd src-ui && npm run tauri build
 
 # Build audio capture app for production
 prod-capture:
-	npm run tauri:capture:build
-
-# Check code signing setup for macOS distribution
-check-signing:
-	./scripts/check-signing.sh
+	cargo build --release
+	cd src-audio-capture && npm run tauri build
 
 # ----------------------------------------------------------------------
 # DEV
 # ----------------------------------------------------------------------
 
 dev:
-	npm run tauri dev
+	cargo build
+	cd src-ui && npm run tauri dev
 
-# Run audio capture as separate Tauri app (with backend)
-dev-capture-app:
-	npm run tauri:capture
-
-# Run audio capture UI only (requires backend from 'just dev')
 dev-capture:
-	npm run dev:capture
+	cargo build
+	cd src-audio-capture && npm run tauri dev
 
 # ----------------------------------------------------------------------
 # UPDATE
@@ -58,22 +55,25 @@ update-ts:
 test: test-rust test-ts
 
 test-rust:
-	cd src-tauri && cargo test
+	cargo test
 
 test-ts:
-	npm run test
+	cd src-ui && npm run test
 
 # ----------------------------------------------------------------------
 # FORMAT
 # ----------------------------------------------------------------------
 
-fmt: fmt-rust fmt-ts
+fmt: fmt-rust fmt-ts-ui fmt-ts-capture
 
 fmt-rust:
-	cd src-tauri && cargo fmt --all
+	cargo fmt --all
 
-fmt-ts:
-	npm run fmt
+fmt-ts-capture:
+	cd src-audio-capture && npm run fmt
+
+fmt-ts-ui:
+	cd src-ui && npm run fmt
 
 # ----------------------------------------------------------------------
 # CLEAN
@@ -81,8 +81,8 @@ fmt-ts:
 
 clean:
 	cargo clean
-	rm -rf dist
-	rm -rf node_modules
+	rm -rf src-*/dist
+	rm -rf src-*/node_modules
 	find . -name '*~' -exec rm {} \; -print
 	find . -name 'Cargo.lock' -exec rm {} \; -print
 	find . -name 'package-lock.json' -exec rm {} \; -print

@@ -22,7 +22,6 @@
     "upgrade": "npx npm-check-updates -u"
   },
 "dependencies": {
-    "@tauri-apps/api": "^1.2.0",
     "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/plugin-clipboard-manager": "^2.3.0",
     "@tauri-apps/plugin-dialog": "^2",

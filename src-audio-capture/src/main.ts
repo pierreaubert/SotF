@@ -66,14 +66,27 @@ document.addEventListener('DOMContentLoaded', async () => {
   let inputRoutingMatrix: RoutingMatrix | null = null;
   let outputRoutingMatrix: RoutingMatrix | null = null;
   
-  // Volume slider handlers
+  // Volume slider handlers with visual feedback
+  function updateVolumeSlider(slider: HTMLInputElement, valueDisplay: HTMLElement) {
+    const value = parseInt(slider.value);
+    valueDisplay.textContent = `${value}%`;
+    
+    // Update slider background gradient
+    const percentage = value;
+    slider.style.background = `linear-gradient(to right, var(--button-primary) 0%, var(--button-primary) ${percentage}%, var(--bg-accent) ${percentage}%, var(--bg-accent) 100%)`;
+  }
+  
   elements.inputVolume.addEventListener('input', (e) => {
-    elements.inputVolumeValue.textContent = `${(e.target as HTMLInputElement).value}%`;
+    updateVolumeSlider(e.target as HTMLInputElement, elements.inputVolumeValue);
   });
   
   elements.outputVolume.addEventListener('input', (e) => {
-    elements.outputVolumeValue.textContent = `${(e.target as HTMLInputElement).value}%`;
+    updateVolumeSlider(e.target as HTMLInputElement, elements.outputVolumeValue);
   });
+  
+  // Initialize slider gradients
+  updateVolumeSlider(elements.inputVolume, elements.inputVolumeValue);
+  updateVolumeSlider(elements.outputVolume, elements.outputVolumeValue);
   
   // Update device info badges
   function updateDeviceInfo(deviceName: string, isInput: boolean) {

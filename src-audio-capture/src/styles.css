@@ -1751,26 +1751,38 @@ input[type="checkbox"] {
 
 .volume-slider-container {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
-  gap: var(--spacing-xs);
-  flex-grow: 1;
-  justify-content: flex-end;
+  gap: 8px;
+  flex: 1;
+}
+
+.volume-icon {
+  flex-shrink: 0;
+  color: var(--text-secondary);
+  opacity: 0.7;
+}
+
+.volume-icon-low {
+  width: 14px;
+  height: 14px;
+}
+
+.volume-icon-high {
+  width: 16px;
+  height: 16px;
 }
 
 .volume-slider {
   -webkit-appearance: none;
   appearance: none;
-  width: 100%;
+  flex: 1;
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, 
-    var(--bg-accent) 0%, 
-    var(--bg-accent) 70%, 
-    var(--button-primary) 70%, 
-    var(--button-primary) 100%);
+  background: var(--bg-accent);
   outline: none;
   transition: opacity 0.2s;
+  position: relative;
 }
 
 .volume-slider:hover {

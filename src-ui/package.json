@@ -5,10 +5,14 @@
   "type": "module",
   "scripts": {
 
+    "tauri": "tauri",
+
     "dev": "vite dev",
     "build": "tsc && vite build",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
+    "tauri dev": "tauri dev",
+    "tauri build": "tauri build",
+    "tauri prod": "tauri build",
+    "tauri signer": "tauri signer",
 
     "test": "vitest --run",
     "test:unit": "vitest --run --exclude '**/e2e/**'",

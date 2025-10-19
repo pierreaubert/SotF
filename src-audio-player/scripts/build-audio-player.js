@@ -16,7 +16,7 @@ const __dirname = path.dirname(__filename);
 const AUDIO_PLAYER_DIR = path.join(__dirname, "..");
 const BUILD_DIR = path.join(__dirname, "../dist");
 const SRC_DIR = path.join(__dirname, "../src");
-const PUBLIC_AUDIO_DIR = path.join(__dirname, "../../src-ui/public/demo-audio");
+const PUBLIC_AUDIO_DIR = path.join(__dirname, "../../public/demo-audio");
 
 console.log("🎵 Building standalone audio player...");
 

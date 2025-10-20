@@ -5,7 +5,6 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use tauri::{AppHandle, Emitter};
 
 // Global cancellation state
 pub struct CancellationState {
@@ -266,11 +265,16 @@ pub fn validate_params(
     Ok(())
 }
 
+/// Trait for receiving progress updates during optimization
+pub trait ProgressCallback: Send + Sync {
+    fn on_progress(&self, update: ProgressUpdate) -> bool;
+}
+
 /// Helper function to run metaheuristics optimization with progress callbacks
-fn run_mh_optimization_with_callback(
+fn run_mh_optimization_with_callback<P: ProgressCallback + 'static>(
     args: &AutoEQArgs,
     objective_data: &autoeq::optim::ObjectiveData,
-    app_handle: AppHandle,
+    progress_callback: Arc<P>,
     cancellation_state: Arc<CancellationState>,
 ) -> Result<Vec<f64>, Box<dyn std::error::Error + Send + Sync>> {
     use autoeq::optim::AlgorithmCategory;
@@ -309,23 +313,23 @@ fn run_mh_optimization_with_callback(
             );
         }
 
-        // Emit progress update to frontend
+        // Emit progress update via callback
         // Note: MHIntermediate doesn't have convergence, so we use 0.0 as a placeholder
-        let emit_result = app_handle.emit(
-            "progress_update",
-            ProgressUpdate {
-                iteration: intermediate.iter,
-                fitness: intermediate.fun,
-                params: intermediate.x.to_vec(),
-                convergence: 0.0, // MH doesn't provide convergence info
-            },
-        );
+        let continue_optimization = progress_callback.on_progress(ProgressUpdate {
+            iteration: intermediate.iter,
+            fitness: intermediate.fun,
+            params: intermediate.x.to_vec(),
+            convergence: 0.0, // MH doesn't provide convergence info
+        });
 
-        if let Err(e) = emit_result {
-            println!("[RUST DEBUG] Failed to emit MH progress update: {}", e);
-        } else if progress_count % 25 == 0 {
+        if !continue_optimization {
+            println!("[RUST DEBUG] MH optimization stopped by progress callback");
+            return autoeq::de::CallbackAction::Stop;
+        }
+
+        if progress_count % 25 == 0 {
             println!(
-                "[RUST DEBUG] MH Progress event emitted successfully (count: {})",
+                "[RUST DEBUG] MH Progress callback invoked successfully (count: {})",
                 progress_count
             );
         }
@@ -351,9 +355,9 @@ fn run_mh_optimization_with_callback(
     }
 }
 
-pub async fn run_optimization_internal(
+pub async fn run_optimization_internal<P: ProgressCallback + 'static>(
     params: OptimizationParams,
-    app_handle: AppHandle,
+    progress_callback: Arc<P>,
     cancellation_state: Arc<CancellationState>,
 ) -> Result<OptimizationResult, Box<dyn std::error::Error + Send + Sync>> {
     println!("[RUST DEBUG] run_optimization_internal started");
@@ -573,7 +577,7 @@ pub async fn run_optimization_internal(
         );
         let mut progress_count = 0;
         let cancellation_state_clone = Arc::clone(&cancellation_state);
-        let app_handle_clone = app_handle.clone();
+        let progress_callback_clone = Arc::clone(&progress_callback);
 
         if args.algo == "autoeq:de" {
             // Use DE-specific callback
@@ -591,19 +595,18 @@ pub async fn run_optimization_internal(
                         println!("[RUST DEBUG] Progress update #{}: iter={}, fitness={:.6}, convergence={:.4}",
                                  progress_count, intermediate.iter, intermediate.fun, intermediate.convergence);
                     }
-                    let emit_result = app_handle_clone.emit(
-                        "progress_update",
-                        ProgressUpdate {
-                            iteration: intermediate.iter,
-                            fitness: intermediate.fun,
-                            params: intermediate.x.to_vec(),
-                            convergence: intermediate.convergence,
-                        },
-                    );
-                    if let Err(e) = emit_result {
-                        println!("[RUST DEBUG] Failed to emit progress update: {}", e);
-                    } else if progress_count % 50 == 0 {
-                        println!("[RUST DEBUG] Progress event emitted successfully (count: {})", progress_count);
+                    let continue_opt = progress_callback_clone.on_progress(ProgressUpdate {
+                        iteration: intermediate.iter,
+                        fitness: intermediate.fun,
+                        params: intermediate.x.to_vec(),
+                        convergence: intermediate.convergence,
+                    });
+                    if !continue_opt {
+                        println!("[RUST DEBUG] Optimization stopped by progress callback");
+                        return autoeq::de::CallbackAction::Stop;
+                    }
+                    if progress_count % 50 == 0 {
+                        println!("[RUST DEBUG] Progress callback invoked successfully (count: {})", progress_count);
                     }
                     autoeq::de::CallbackAction::Continue
                 }),
@@ -618,7 +621,7 @@ pub async fn run_optimization_internal(
             run_mh_optimization_with_callback(
                 &args,
                 &objective_data,
-                app_handle_clone,
+                progress_callback,
                 cancellation_state_clone,
             )?
         }

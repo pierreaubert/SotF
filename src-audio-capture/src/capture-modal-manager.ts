@@ -1211,15 +1211,18 @@ export class CaptureModalManager {
   private updateChannelSelectOptions(outputChannel: string): void {
     if (!this.captureChannelSelect) return;
 
+    // Store reference for use in callbacks
+    const channelSelect = this.captureChannelSelect;
+
     // Clear existing options
-    this.captureChannelSelect.innerHTML = "";
+    channelSelect.innerHTML = "";
 
     // Always add the current capture option if we have current data
     if (this.currentCaptureData) {
       const currentOption = document.createElement("option");
       currentOption.value = "current";
       currentOption.textContent = `Current${this.getChannelDisplayName(outputChannel)}`;
-      this.captureChannelSelect.appendChild(currentOption);
+      channelSelect.appendChild(currentOption);
     }
 
     // Add "Average" option for current capture if it's stereo
@@ -1230,7 +1233,7 @@ export class CaptureModalManager {
       const avgOption = document.createElement("option");
       avgOption.value = "average";
       avgOption.textContent = "Average";
-      this.captureChannelSelect.appendChild(avgOption);
+      channelSelect.appendChild(avgOption);
     }
 
     // Add separator before saved sweeps
@@ -1239,36 +1242,36 @@ export class CaptureModalManager {
       const separator = document.createElement("option");
       separator.disabled = true;
       separator.textContent = "──────────";
-      this.captureChannelSelect.appendChild(separator);
+      channelSelect.appendChild(separator);
 
       // Add sum/average of all sweeps options
       const sumOption = document.createElement("option");
       sumOption.value = "__sum_all__";
       sumOption.textContent = `Sum of All ${allSavedCaptures.length} Sweeps`;
-      this.captureChannelSelect.appendChild(sumOption);
+      channelSelect.appendChild(sumOption);
 
       const avgAllOption = document.createElement("option");
       avgAllOption.value = "__average_all__";
       avgAllOption.textContent = `Average of All ${allSavedCaptures.length} Sweeps`;
-      this.captureChannelSelect.appendChild(avgAllOption);
+      channelSelect.appendChild(avgAllOption);
 
       // Add separator before individual sweeps
       const separator2 = document.createElement("option");
       separator2.disabled = true;
       separator2.textContent = "──────────";
-      this.captureChannelSelect.appendChild(separator2);
+      channelSelect.appendChild(separator2);
 
       // Add each saved sweep
       allSavedCaptures.forEach((capture, index) => {
         const sweepOption = document.createElement("option");
         sweepOption.value = `sweep_${capture.id}`;
         sweepOption.textContent = `${index + 1}. ${capture.name}`;
-        this.captureChannelSelect.appendChild(sweepOption);
+        channelSelect.appendChild(sweepOption);
       });
     }
 
     // Set default selection
-    this.captureChannelSelect.value = "current";
+    channelSelect.value = "current";
     console.log(
       `Updated channel options for output: ${outputChannel}, ${allSavedCaptures.length} saved sweeps`,
     );

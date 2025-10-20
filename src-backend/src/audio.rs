@@ -2,7 +2,6 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use tauri::State;
 
 /// Represents information about an audio device
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,8 +44,7 @@ fn format_to_string(format: cpal::SampleFormat) -> String {
 }
 
 /// Get information about all available audio devices
-#[tauri::command]
-pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, String> {
+pub fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, String> {
     println!("[AUDIO DEBUG] Enumerating audio devices...");
     let host = cpal::default_host();
     let mut devices_map = HashMap::new();
@@ -258,12 +256,11 @@ pub async fn get_audio_devices() -> Result<HashMap<String, Vec<AudioDevice>>, St
 }
 
 /// Set the configuration for an audio device
-#[tauri::command]
-pub async fn set_audio_device(
+pub fn set_audio_device(
     device_name: String,
     is_input: bool,
     config: AudioConfig,
-    audio_state: State<'_, SharedAudioState>,
+    audio_state: &SharedAudioState,
 ) -> Result<String, String> {
     println!(
         "[AUDIO DEBUG] Setting {} device '{}' with config: sample_rate={}, channels={}, format={}",
@@ -373,9 +370,8 @@ pub async fn set_audio_device(
 }
 
 /// Get the current audio configuration
-#[tauri::command]
-pub async fn get_audio_config(
-    audio_state: State<'_, SharedAudioState>,
+pub fn get_audio_config(
+    audio_state: &SharedAudioState,
 ) -> Result<AudioState, String> {
     println!("[AUDIO DEBUG] Getting current audio configuration");
     let state = audio_state.lock().map_err(|e| {
@@ -394,8 +390,7 @@ pub async fn get_audio_config(
 }
 
 /// Get detailed properties of a specific audio device
-#[tauri::command]
-pub async fn get_device_properties(
+pub fn get_device_properties(
     device_name: String,
     is_input: bool,
 ) -> Result<serde_json::Value, String> {

@@ -8,7 +8,7 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 // Import from autoeq_backend
-use autoeq_backend::optim::run_optimization_internal;
+use autoeq_backend::optim::{run_optimization_internal, ProgressCallback, ProgressUpdate};
 use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
 use autoeq_backend::{
 <<<<<<< HEAD
@@ -19,7 +19,7 @@ use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
 use autoeq_backend::optim::run_optimization_internal;
 =======
     AudioManager, CancellationState, OptimizationParams, OptimizationResult, SharedAudioState,
-    audio, curve_data_to_curve,
+    curve_data_to_curve,
 };
 use tokio::sync::Mutex;
 >>>>>>> cecce10 (fix: sweeps storing/recalling)
@@ -105,6 +105,24 @@ async fn get_speaker_measurements(speaker: String, version: String) -> Result<Ve
     }
 }
 
+// Tauri-specific ProgressCallback implementation
+struct TauriProgressCallback {
+    app_handle: AppHandle,
+}
+
+impl ProgressCallback for TauriProgressCallback {
+    fn on_progress(&self, update: ProgressUpdate) -> bool {
+        // Emit progress update to frontend
+        match self.app_handle.emit("progress_update", &update) {
+            Ok(_) => true,  // Continue optimization
+            Err(e) => {
+                eprintln!("Failed to emit progress update: {}", e);
+                true  // Still continue even if emit fails
+            }
+        }
+    }
+}
+
 #[tauri::command]
 async fn run_optimization(
     params: OptimizationParams,
@@ -123,9 +141,16 @@ async fn run_optimization(
     // Reset cancellation state at the start of optimization
     cancellation_state.reset();
 
-    let result =
-        run_optimization_internal(params, app_handle, Arc::new((*cancellation_state).clone()))
-            .await;
+    // Create progress callback
+    let progress_callback = Arc::new(TauriProgressCallback { app_handle });
+
+    let result = run_optimization_internal(
+        params,
+        progress_callback,
+        Arc::new((*cancellation_state).clone()),
+    )
+    .await;
+    
     match result {
         Ok(res) => {
             println!("[RUST DEBUG] Optimization completed successfully");
@@ -304,6 +329,7 @@ fn cancel_optimization(cancellation_state: State<CancellationState>) -> Result<(
 // ============================================================================
 
 use autoeq_backend::{AudioState, AudioStreamState, FilterParams};
+use autoeq_backend::audio::{AudioDevice, AudioConfig};
 use std::path::PathBuf;
 
 // ============================================================================
@@ -561,6 +587,45 @@ async fn audio_get_signal_peak(
         .map_err(|e| format!("{}", e))
 }
 
+// ============================================================================
+// Audio Device Management Commands (Tauri wrappers for backend functions)
+// ============================================================================
+
+#[tauri::command]
+async fn get_audio_devices() -> Result<std::collections::HashMap<String, Vec<AudioDevice>>, String> {
+    autoeq_backend::audio::get_audio_devices()
+}
+
+#[tauri::command]
+async fn set_audio_device(
+    device_name: String,
+    is_input: bool,
+    config: AudioConfig,
+    audio_state: State<'_, SharedAudioState>,
+) -> Result<String, String> {
+    autoeq_backend::audio::set_audio_device(
+        device_name,
+        is_input,
+        config,
+        &*audio_state,
+    )
+}
+
+#[tauri::command]
+async fn get_audio_config(
+    audio_state: State<'_, SharedAudioState>,
+) -> Result<autoeq_backend::audio::AudioState, String> {
+    autoeq_backend::audio::get_audio_config(&*audio_state)
+}
+
+#[tauri::command]
+async fn get_device_properties(
+    device_name: String,
+    is_input: bool,
+) -> Result<serde_json::Value, String> {
+    autoeq_backend::audio::get_device_properties(device_name, is_input)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Find CamillaDSP binary
@@ -592,10 +657,10 @@ pub fn run() {
             generate_plot_spin_details,
             generate_plot_spin_tonal,
             exit_app,
-            audio::get_audio_devices,
-            audio::set_audio_device,
-            audio::get_audio_config,
-            audio::get_device_properties,
+            get_audio_devices,
+            set_audio_device,
+            get_audio_config,
+            get_device_properties,
             audio_start_playback,
             audio_stop_playback,
             audio_update_filters,

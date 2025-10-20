@@ -22,6 +22,10 @@ prod-capture:
 	cargo build --release
 	cd src-audio-capture && npm run tauri build
 
+# Build GPUI app for production
+prod-gpui:
+	cd src-gpui && cargo build --release
+
 # ----------------------------------------------------------------------
 # DEV
 # ----------------------------------------------------------------------
@@ -33,6 +37,9 @@ dev:
 dev-capture:
 	cargo build
 	cd src-audio-capture && npm run tauri dev
+
+dev-gpui:
+	cd src-gpui && cargo run
 
 # ----------------------------------------------------------------------
 # UPDATE
@@ -59,6 +66,9 @@ test-rust:
 
 test-ts:
 	cd src-ui && npm run test
+
+test-gpui:
+	cd src-gpui && cargo test
 
 # ----------------------------------------------------------------------
 # FORMAT
@@ -114,10 +124,6 @@ install-macos:
 	xcode-select --install
 	# need brew
 	brew install npm
-	npm install .
-	# For Tauri
-	rustup target add aarch64-apple-darwin
-	rustup target add x86_64-apple-darwin
 
 install-ubuntu-arm:
         sudo apt install -y \
@@ -141,11 +147,34 @@ install-ubuntu-arm:
              gfortran \
              chromium-browser \
              chromium-chromedriver
-        # rust
-        rustup default stable
         # node
         sudo npm cache clean -f
         sudo npm install -f n
         sudo n stable
-        /usr/local/bin/npm install .
+
+
+# ----------------------------------------------------------------------
+# POST
+# ----------------------------------------------------------------------
+
+post-install-npm-ui:
+	cd src-ui && npm install .
+
+post-install-npm-capture:
+	cd src-audio-capture && npm install . && cd ..
+
+post-install-npm: post-install-npm-ui post-install-npm-capture
+
+post-install-rust:
+	rustup default stable
+	cargo install just
+	cargo check
+
+post-install: post-install-rust post-install-npm
+
+# ----------------------------------------------------------------------
+# SIGNING
+# ----------------------------------------------------------------------
+
+
 

@@ -165,7 +165,6 @@ async fn list_devices() -> Result<(), String> {
     println!("Enumerating audio devices...\n");
 
     let devices = audio::get_audio_devices()
-        .await
         .map_err(|e| format!("Failed to get devices: {}", e))?;
 
     // Print input devices

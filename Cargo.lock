@@ -567,7 +567,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "tauri",
  "tempfile",
  "tokio",
  "tokio-tungstenite",

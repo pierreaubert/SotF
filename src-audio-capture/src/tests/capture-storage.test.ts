@@ -3,10 +3,10 @@
  * Tests localStorage persistence, capture management, and data validation
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { CaptureStorage, type StoredCapture } from '../capture-storage';
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { CaptureStorage, type StoredCapture } from "../capture-storage";
 
-describe('capture-storage', () => {
+describe("capture-storage", () => {
   // Mock localStorage
   let mockStorage: Record<string, string> = {};
 
@@ -35,15 +35,15 @@ describe('capture-storage', () => {
     CaptureStorage.clearAll();
   });
 
-  describe('saveCapture', () => {
-    it('should save a capture and return an ID', () => {
+  describe("saveCapture", () => {
+    it("should save a capture and return an ID", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100, 1000, 10000],
         rawMagnitudes: [0, -3, -6],
         smoothedMagnitudes: [0, -3, -6],
@@ -58,17 +58,17 @@ describe('capture-storage', () => {
 
       const retrieved = CaptureStorage.getCapture(id);
       expect(retrieved).not.toBeNull();
-      expect(retrieved?.deviceName).toBe('Test Device');
+      expect(retrieved?.deviceName).toBe("Test Device");
     });
 
-    it('should generate unique IDs for multiple captures', () => {
+    it("should generate unique IDs for multiple captures", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -85,14 +85,14 @@ describe('capture-storage', () => {
       expect(id1).not.toBe(id3);
     });
 
-    it('should enforce storage limit', () => {
+    it("should enforce storage limit", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -103,10 +103,12 @@ describe('capture-storage', () => {
       // Save 15 captures (max is 10)
       const ids: string[] = [];
       for (let i = 0; i < 15; i++) {
-        ids.push(CaptureStorage.saveCapture({
-          ...captureData,
-          deviceName: `Device ${i}`,
-        }));
+        ids.push(
+          CaptureStorage.saveCapture({
+            ...captureData,
+            deviceName: `Device ${i}`,
+          }),
+        );
       }
 
       const allCaptures = CaptureStorage.getAllCaptures();
@@ -118,14 +120,14 @@ describe('capture-storage', () => {
       expect(CaptureStorage.getCapture(ids[0])).toBeNull();
     });
 
-    it('should generate display names', () => {
+    it("should generate display names", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -141,20 +143,20 @@ describe('capture-storage', () => {
     });
   });
 
-  describe('getAllCaptures', () => {
-    it('should return empty array when no captures exist', () => {
+  describe("getAllCaptures", () => {
+    it("should return empty array when no captures exist", () => {
       const captures = CaptureStorage.getAllCaptures();
       expect(captures).toEqual([]);
     });
 
-    it('should return all saved captures', () => {
+    it("should return all saved captures", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -169,17 +171,17 @@ describe('capture-storage', () => {
       expect(captures.length).toBe(2);
     });
 
-    it('should handle corrupted storage gracefully', () => {
-      mockStorage['autoeq_captured_curves'] = 'invalid json';
+    it("should handle corrupted storage gracefully", () => {
+      mockStorage["autoeq_captured_curves"] = "invalid json";
 
       const captures = CaptureStorage.getAllCaptures();
       expect(captures).toEqual([]);
     });
 
-    it('should clear old data on version mismatch', () => {
-      mockStorage['autoeq_captured_curves'] = JSON.stringify({
-        version: '0.9',
-        captures: [{ id: 'old' }],
+    it("should clear old data on version mismatch", () => {
+      mockStorage["autoeq_captured_curves"] = JSON.stringify({
+        version: "0.9",
+        captures: [{ id: "old" }],
       });
 
       const captures = CaptureStorage.getAllCaptures();
@@ -187,15 +189,15 @@ describe('capture-storage', () => {
     });
   });
 
-  describe('getCapture', () => {
-    it('should retrieve a specific capture by ID', () => {
+  describe("getCapture", () => {
+    it("should retrieve a specific capture by ID", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -208,24 +210,24 @@ describe('capture-storage', () => {
 
       expect(retrieved).not.toBeNull();
       expect(retrieved?.id).toBe(id);
-      expect(retrieved?.deviceName).toBe('Test Device');
+      expect(retrieved?.deviceName).toBe("Test Device");
     });
 
-    it('should return null for non-existent ID', () => {
-      const retrieved = CaptureStorage.getCapture('non-existent-id');
+    it("should return null for non-existent ID", () => {
+      const retrieved = CaptureStorage.getCapture("non-existent-id");
       expect(retrieved).toBeNull();
     });
   });
 
-  describe('deleteCapture', () => {
-    it('should delete a capture and return true', () => {
+  describe("deleteCapture", () => {
+    it("should delete a capture and return true", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -240,19 +242,19 @@ describe('capture-storage', () => {
       expect(CaptureStorage.getCapture(id)).toBeNull();
     });
 
-    it('should return false for non-existent ID', () => {
-      const result = CaptureStorage.deleteCapture('non-existent');
+    it("should return false for non-existent ID", () => {
+      const result = CaptureStorage.deleteCapture("non-existent");
       expect(result).toBe(false);
     });
 
-    it('should maintain other captures after deletion', () => {
+    it("should maintain other captures after deletion", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -260,8 +262,14 @@ describe('capture-storage', () => {
         smoothedPhase: [0],
       };
 
-      const id1 = CaptureStorage.saveCapture({ ...captureData, deviceName: 'Device 1' });
-      const id2 = CaptureStorage.saveCapture({ ...captureData, deviceName: 'Device 2' });
+      const id1 = CaptureStorage.saveCapture({
+        ...captureData,
+        deviceName: "Device 1",
+      });
+      const id2 = CaptureStorage.saveCapture({
+        ...captureData,
+        deviceName: "Device 2",
+      });
 
       CaptureStorage.deleteCapture(id1);
 
@@ -270,15 +278,15 @@ describe('capture-storage', () => {
     });
   });
 
-  describe('clearAll', () => {
-    it('should remove all captures', () => {
+  describe("clearAll", () => {
+    it("should remove all captures", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -295,8 +303,8 @@ describe('capture-storage', () => {
     });
   });
 
-  describe('getStats', () => {
-    it('should return zero stats for empty storage', () => {
+  describe("getStats", () => {
+    it("should return zero stats for empty storage", () => {
       const stats = CaptureStorage.getStats();
 
       expect(stats.totalCaptures).toBe(0);
@@ -305,14 +313,14 @@ describe('capture-storage', () => {
       expect(stats.totalSizeKB).toBe(0);
     });
 
-    it('should calculate stats correctly', () => {
+    it("should calculate stats correctly", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100],
         rawMagnitudes: [0],
         smoothedMagnitudes: [0],
@@ -321,7 +329,10 @@ describe('capture-storage', () => {
       };
 
       CaptureStorage.saveCapture(captureData);
-      CaptureStorage.saveCapture({ ...captureData, timestamp: new Date(Date.now() + 1000) });
+      CaptureStorage.saveCapture({
+        ...captureData,
+        timestamp: new Date(Date.now() + 1000),
+      });
 
       const stats = CaptureStorage.getStats();
 
@@ -332,15 +343,15 @@ describe('capture-storage', () => {
     });
   });
 
-  describe('toOptimizationFormat', () => {
-    it('should convert capture to optimization format', () => {
+  describe("toOptimizationFormat", () => {
+    it("should convert capture to optimization format", () => {
       const captureData = {
         timestamp: new Date(),
-        deviceName: 'Test Device',
-        signalType: 'sweep' as const,
+        deviceName: "Test Device",
+        signalType: "sweep" as const,
         duration: 10,
         sampleRate: 48000,
-        outputChannel: 'both',
+        outputChannel: "both",
         frequencies: [100, 1000, 10000],
         rawMagnitudes: [0, -3, -6],
         smoothedMagnitudes: [1, -2, -5],
@@ -356,8 +367,8 @@ describe('capture-storage', () => {
       expect(format?.magnitudes).toEqual([1, -2, -5]); // Uses smoothed data
     });
 
-    it('should return null for non-existent capture', () => {
-      const format = CaptureStorage.toOptimizationFormat('non-existent');
+    it("should return null for non-existent capture", () => {
+      const format = CaptureStorage.toOptimizationFormat("non-existent");
       expect(format).toBeNull();
     });
   });

@@ -7,7 +7,10 @@ import {
 } from "./optimization-constants";
 import { CaptureModalManager } from "../../../src-audio-capture/src/capture-modal-manager";
 import { RoutingMatrix } from "../../../src-audio-player/src/audio-routing";
-import { CaptureStorage, type StoredCapture } from "../../../src-audio-capture/src/capture-storage";
+import {
+  CaptureStorage,
+  type StoredCapture,
+} from "../../../src-audio-capture/src/capture-storage";
 
 export class UIManager {
   private form!: HTMLFormElement;
@@ -382,7 +385,6 @@ export class UIManager {
   private setupCaptureModalEventListeners(): void {
     // This method is no longer needed - CaptureModalManager handles all event listeners
   }
-
 
   private setupResizer(): void {
     // Panel resizing functionality
@@ -927,7 +929,9 @@ export class UIManager {
       }
 
       // Import AudioProcessor dynamically to avoid circular dependencies
-      const { AudioProcessor } = await import("../../../src-audio-player/src/audio-processor");
+      const { AudioProcessor } = await import(
+        "../../../src-audio-player/src/audio-processor"
+      );
       const audioProcessor = new AudioProcessor();
 
       try {
@@ -1213,7 +1217,9 @@ export class UIManager {
     // Populate audio devices on initialization
     if (this.captureDeviceSelect) {
       try {
-        const { AudioProcessor } = await import("../../../src-audio-player/src/audio-processor");
+        const { AudioProcessor } = await import(
+          "../../../src-audio-player/src/audio-processor"
+        );
         const audioProcessor = new AudioProcessor();
         await this.populateAudioDevices(audioProcessor);
         audioProcessor.destroy();
@@ -1262,15 +1268,17 @@ export class UIManager {
   private initializeCaptureModal(): void {
     // Create CaptureModalManager instance
     this.captureModalManager = new CaptureModalManager();
-    
+
     // Set up callbacks
-    this.captureModalManager.setCaptureCompleteCallback((frequencies: number[], magnitudes: number[]) => {
-      if (this.onCaptureComplete) {
-        this.onCaptureComplete(frequencies, magnitudes);
-      }
-    });
-    
-    console.log('CaptureModalManager initialized');
+    this.captureModalManager.setCaptureCompleteCallback(
+      (frequencies: number[], magnitudes: number[]) => {
+        if (this.onCaptureComplete) {
+          this.onCaptureComplete(frequencies, magnitudes);
+        }
+      },
+    );
+
+    console.log("CaptureModalManager initialized");
   }
 
   private async openCaptureModal(): Promise<void> {
@@ -1285,9 +1293,7 @@ export class UIManager {
     }
   }
 
-  setOutputDeviceChangeCallback(
-    callback: (deviceId: string) => void,
-  ): void {
+  setOutputDeviceChangeCallback(callback: (deviceId: string) => void): void {
     this.outputDeviceChangeCallback = callback;
   }
 

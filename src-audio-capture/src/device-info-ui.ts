@@ -3,7 +3,7 @@
  * Shows enhanced device capabilities from cpal
  */
 
-import { AudioDeviceManager, UnifiedAudioDevice } from './device-manager';
+import { AudioDeviceManager, UnifiedAudioDevice } from "./device-manager";
 
 export class DeviceInfoUI {
   private container: HTMLElement;
@@ -20,19 +20,19 @@ export class DeviceInfoUI {
    */
   async initialize(): Promise<void> {
     // Clear container
-    this.container.innerHTML = '';
-    
+    this.container.innerHTML = "";
+
     // Add loading indicator
     this.showLoading();
-    
+
     try {
       // Enumerate devices
       const devices = await this.deviceManager.enumerateDevices();
-      
+
       // Build UI
       this.buildUI(devices);
     } catch (error) {
-      this.showError('Failed to enumerate audio devices: ' + error);
+      this.showError("Failed to enumerate audio devices: " + error);
     }
   }
 
@@ -63,56 +63,61 @@ export class DeviceInfoUI {
   /**
    * Build the device info UI
    */
-  private buildUI(devices: { input: UnifiedAudioDevice[], output: UnifiedAudioDevice[] }): void {
+  private buildUI(devices: {
+    input: UnifiedAudioDevice[];
+    output: UnifiedAudioDevice[];
+  }): void {
     // Clear container
-    this.container.innerHTML = '';
-    
+    this.container.innerHTML = "";
+
     // Create main wrapper
-    const wrapper = document.createElement('div');
-    wrapper.className = 'device-info-wrapper';
-    
+    const wrapper = document.createElement("div");
+    wrapper.className = "device-info-wrapper";
+
     // Add title
-    const title = document.createElement('h3');
-    title.className = 'device-info-title';
-    title.textContent = 'Audio Device Information';
+    const title = document.createElement("h3");
+    title.className = "device-info-title";
+    title.textContent = "Audio Device Information";
     wrapper.appendChild(title);
-    
+
     // Add device type tabs
-    const tabs = document.createElement('div');
-    tabs.className = 'device-info-tabs';
-    
-    const inputTab = document.createElement('button');
-    inputTab.className = 'device-tab active';
+    const tabs = document.createElement("div");
+    tabs.className = "device-info-tabs";
+
+    const inputTab = document.createElement("button");
+    inputTab.className = "device-tab active";
     inputTab.textContent = `Input Devices (${devices.input.length})`;
-    inputTab.onclick = () => this.showDeviceList('input', devices.input, inputTab, outputTab);
+    inputTab.onclick = () =>
+      this.showDeviceList("input", devices.input, inputTab, outputTab);
     tabs.appendChild(inputTab);
-    
-    const outputTab = document.createElement('button');
-    outputTab.className = 'device-tab';
+
+    const outputTab = document.createElement("button");
+    outputTab.className = "device-tab";
     outputTab.textContent = `Output Devices (${devices.output.length})`;
-    outputTab.onclick = () => this.showDeviceList('output', devices.output, outputTab, inputTab);
+    outputTab.onclick = () =>
+      this.showDeviceList("output", devices.output, outputTab, inputTab);
     tabs.appendChild(outputTab);
-    
+
     wrapper.appendChild(tabs);
-    
+
     // Device list container
-    const listContainer = document.createElement('div');
-    listContainer.className = 'device-list-container';
-    listContainer.id = 'device-list-container';
+    const listContainer = document.createElement("div");
+    listContainer.className = "device-list-container";
+    listContainer.id = "device-list-container";
     wrapper.appendChild(listContainer);
-    
+
     // Selected device details container
-    const detailsContainer = document.createElement('div');
-    detailsContainer.className = 'device-details-container';
-    detailsContainer.id = 'device-details-container';
-    detailsContainer.style.display = 'none';
+    const detailsContainer = document.createElement("div");
+    detailsContainer.className = "device-details-container";
+    detailsContainer.id = "device-details-container";
+    detailsContainer.style.display = "none";
     wrapper.appendChild(detailsContainer);
-    
+
     this.container.appendChild(wrapper);
-    
+
     // Show input devices by default
-    this.showDeviceList('input', devices.input, inputTab, outputTab);
-    
+    this.showDeviceList("input", devices.input, inputTab, outputTab);
+
     // Add styles if not already added
     this.addStyles();
   }
@@ -121,22 +126,22 @@ export class DeviceInfoUI {
    * Show device list for a specific type
    */
   private showDeviceList(
-    type: 'input' | 'output',
+    type: "input" | "output",
     devices: UnifiedAudioDevice[],
     activeTab: HTMLElement,
-    inactiveTab: HTMLElement
+    inactiveTab: HTMLElement,
   ): void {
     // Update tab states
-    activeTab.classList.add('active');
-    inactiveTab.classList.remove('active');
-    
+    activeTab.classList.add("active");
+    inactiveTab.classList.remove("active");
+
     // Get container
-    const container = document.getElementById('device-list-container');
+    const container = document.getElementById("device-list-container");
     if (!container) return;
-    
+
     // Clear container
-    container.innerHTML = '';
-    
+    container.innerHTML = "";
+
     if (devices.length === 0) {
       container.innerHTML = `
         <div class="no-devices">
@@ -145,9 +150,9 @@ export class DeviceInfoUI {
       `;
       return;
     }
-    
+
     // Create device cards
-    devices.forEach(device => {
+    devices.forEach((device) => {
       const card = this.createDeviceCard(device);
       container.appendChild(card);
     });
@@ -157,119 +162,119 @@ export class DeviceInfoUI {
    * Create a device card element
    */
   private createDeviceCard(device: UnifiedAudioDevice): HTMLElement {
-    const card = document.createElement('div');
-    card.className = 'device-card';
+    const card = document.createElement("div");
+    card.className = "device-card";
     if (device.isDefault) {
-      card.classList.add('default');
+      card.classList.add("default");
     }
-    
+
     // Device header
-    const header = document.createElement('div');
-    header.className = 'device-card-header';
-    
+    const header = document.createElement("div");
+    header.className = "device-card-header";
+
     // Device name
-    const name = document.createElement('div');
-    name.className = 'device-name';
+    const name = document.createElement("div");
+    name.className = "device-name";
     name.textContent = device.name;
     header.appendChild(name);
-    
+
     // Device badges
-    const badges = document.createElement('div');
-    badges.className = 'device-badges';
-    
+    const badges = document.createElement("div");
+    badges.className = "device-badges";
+
     // Source badge (cpal or WebAudio)
-    const sourceBadge = document.createElement('span');
-    sourceBadge.className = `badge badge-${device.isWebAudio ? 'web' : 'cpal'}`;
-    sourceBadge.textContent = device.isWebAudio ? 'WebAudio' : 'CPAL';
-    sourceBadge.title = device.isWebAudio 
-      ? 'Standard browser audio API' 
-      : 'Enhanced native audio (via Tauri)';
+    const sourceBadge = document.createElement("span");
+    sourceBadge.className = `badge badge-${device.isWebAudio ? "web" : "cpal"}`;
+    sourceBadge.textContent = device.isWebAudio ? "WebAudio" : "CPAL";
+    sourceBadge.title = device.isWebAudio
+      ? "Standard browser audio API"
+      : "Enhanced native audio (via Tauri)";
     badges.appendChild(sourceBadge);
-    
+
     // Default badge
     if (device.isDefault) {
-      const defaultBadge = document.createElement('span');
-      defaultBadge.className = 'badge badge-default';
-      defaultBadge.textContent = 'Default';
+      const defaultBadge = document.createElement("span");
+      defaultBadge.className = "badge badge-default";
+      defaultBadge.textContent = "Default";
       badges.appendChild(defaultBadge);
     }
-    
+
     // Channel count badge
-    const channelsBadge = document.createElement('span');
-    channelsBadge.className = 'badge badge-channels';
+    const channelsBadge = document.createElement("span");
+    channelsBadge.className = "badge badge-channels";
     channelsBadge.textContent = `${device.channels}ch`;
     badges.appendChild(channelsBadge);
-    
+
     header.appendChild(badges);
     card.appendChild(header);
-    
+
     // Device info
-    const info = document.createElement('div');
-    info.className = 'device-card-info';
-    
+    const info = document.createElement("div");
+    info.className = "device-card-info";
+
     // Sample rates
     if (device.sampleRates.length > 0) {
-      const ratesDiv = document.createElement('div');
-      ratesDiv.className = 'device-info-row';
-      
-      const ratesLabel = document.createElement('span');
-      ratesLabel.className = 'info-label';
-      ratesLabel.textContent = 'Sample Rates:';
+      const ratesDiv = document.createElement("div");
+      ratesDiv.className = "device-info-row";
+
+      const ratesLabel = document.createElement("span");
+      ratesLabel.className = "info-label";
+      ratesLabel.textContent = "Sample Rates:";
       ratesDiv.appendChild(ratesLabel);
-      
-      const ratesValue = document.createElement('span');
-      ratesValue.className = 'info-value';
+
+      const ratesValue = document.createElement("span");
+      ratesValue.className = "info-value";
       const ratesList = device.sampleRates
-        .map(r => r >= 1000 ? `${r/1000}kHz` : `${r}Hz`)
-        .join(', ');
+        .map((r) => (r >= 1000 ? `${r / 1000}kHz` : `${r}Hz`))
+        .join(", ");
       ratesValue.textContent = ratesList;
       ratesDiv.appendChild(ratesValue);
-      
+
       info.appendChild(ratesDiv);
     }
-    
+
     // Formats
     if (device.formats.length > 0) {
-      const formatsDiv = document.createElement('div');
-      formatsDiv.className = 'device-info-row';
-      
-      const formatsLabel = document.createElement('span');
-      formatsLabel.className = 'info-label';
-      formatsLabel.textContent = 'Formats:';
+      const formatsDiv = document.createElement("div");
+      formatsDiv.className = "device-info-row";
+
+      const formatsLabel = document.createElement("span");
+      formatsLabel.className = "info-label";
+      formatsLabel.textContent = "Formats:";
       formatsDiv.appendChild(formatsLabel);
-      
-      const formatsValue = document.createElement('span');
-      formatsValue.className = 'info-value';
-      formatsValue.textContent = device.formats.join(', ');
+
+      const formatsValue = document.createElement("span");
+      formatsValue.className = "info-value";
+      formatsValue.textContent = device.formats.join(", ");
       formatsDiv.appendChild(formatsValue);
-      
+
       info.appendChild(formatsDiv);
     }
-    
+
     card.appendChild(info);
-    
+
     // Actions
-    const actions = document.createElement('div');
-    actions.className = 'device-card-actions';
-    
+    const actions = document.createElement("div");
+    actions.className = "device-card-actions";
+
     // Select button
-    const selectBtn = document.createElement('button');
-    selectBtn.className = 'btn-select-device';
-    selectBtn.textContent = 'Select Device';
+    const selectBtn = document.createElement("button");
+    selectBtn.className = "btn-select-device";
+    selectBtn.textContent = "Select Device";
     selectBtn.onclick = () => this.selectDevice(device);
     actions.appendChild(selectBtn);
-    
+
     // Details button
     if (!device.isWebAudio) {
-      const detailsBtn = document.createElement('button');
-      detailsBtn.className = 'btn-device-details';
-      detailsBtn.textContent = 'Details';
+      const detailsBtn = document.createElement("button");
+      detailsBtn.className = "btn-device-details";
+      detailsBtn.textContent = "Details";
       detailsBtn.onclick = () => this.showDeviceDetails(device);
       actions.appendChild(detailsBtn);
     }
-    
+
     card.appendChild(actions);
-    
+
     return card;
   }
 
@@ -279,29 +284,32 @@ export class DeviceInfoUI {
   private async selectDevice(device: UnifiedAudioDevice): Promise<void> {
     try {
       const result = await this.deviceManager.selectDevice(device.deviceId);
-      
+
       if (result.success) {
-        this.showNotification(`Selected: ${device.name}`, 'success');
+        this.showNotification(`Selected: ${device.name}`, "success");
         this.currentDevice = device;
-        
+
         // Update UI to show selected device
-        document.querySelectorAll('.device-card').forEach(card => {
-          card.classList.remove('selected');
+        document.querySelectorAll(".device-card").forEach((card) => {
+          card.classList.remove("selected");
         });
-        
+
         // Find and mark selected card
-        const cards = document.querySelectorAll('.device-card');
-        cards.forEach(card => {
-          const nameEl = card.querySelector('.device-name');
+        const cards = document.querySelectorAll(".device-card");
+        cards.forEach((card) => {
+          const nameEl = card.querySelector(".device-name");
           if (nameEl?.textContent === device.name) {
-            card.classList.add('selected');
+            card.classList.add("selected");
           }
         });
       } else {
-        this.showNotification(`Failed to select device: ${result.error}`, 'error');
+        this.showNotification(
+          `Failed to select device: ${result.error}`,
+          "error",
+        );
       }
     } catch (error) {
-      this.showNotification(`Error selecting device: ${error}`, 'error');
+      this.showNotification(`Error selecting device: ${error}`, "error");
     }
   }
 
@@ -309,16 +317,19 @@ export class DeviceInfoUI {
    * Show detailed device properties
    */
   private async showDeviceDetails(device: UnifiedAudioDevice): Promise<void> {
-    const container = document.getElementById('device-details-container');
+    const container = document.getElementById("device-details-container");
     if (!container) return;
-    
+
     // Show loading
-    container.innerHTML = '<div class="loading">Loading device details...</div>';
-    container.style.display = 'block';
-    
+    container.innerHTML =
+      '<div class="loading">Loading device details...</div>';
+    container.style.display = "block";
+
     try {
-      const details = await this.deviceManager.getDeviceDetails(device.deviceId);
-      
+      const details = await this.deviceManager.getDeviceDetails(
+        device.deviceId,
+      );
+
       // Build details view
       container.innerHTML = `
         <div class="device-details">
@@ -343,15 +354,18 @@ export class DeviceInfoUI {
   /**
    * Show notification
    */
-  private showNotification(message: string, type: 'success' | 'error' | 'info'): void {
+  private showNotification(
+    message: string,
+    type: "success" | "error" | "info",
+  ): void {
     // Create notification element
-    const notification = document.createElement('div');
+    const notification = document.createElement("div");
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
-    
+
     // Add to container
     this.container.appendChild(notification);
-    
+
     // Auto-remove after 3 seconds
     setTimeout(() => {
       notification.remove();
@@ -362,10 +376,10 @@ export class DeviceInfoUI {
    * Add required styles
    */
   private addStyles(): void {
-    if (document.getElementById('device-info-styles')) return;
-    
-    const style = document.createElement('style');
-    style.id = 'device-info-styles';
+    if (document.getElementById("device-info-styles")) return;
+
+    const style = document.createElement("style");
+    style.id = "device-info-styles";
     style.textContent = `
       .device-info-wrapper {
         padding: 1rem;
@@ -628,13 +642,15 @@ export class DeviceInfoUI {
 /**
  * Initialize device info UI in a container
  */
-export async function initializeDeviceInfoUI(containerId: string): Promise<DeviceInfoUI | null> {
+export async function initializeDeviceInfoUI(
+  containerId: string,
+): Promise<DeviceInfoUI | null> {
   const container = document.getElementById(containerId);
   if (!container) {
     console.error(`Container with ID '${containerId}' not found`);
     return null;
   }
-  
+
   const ui = new DeviceInfoUI(container);
   await ui.initialize();
   return ui;

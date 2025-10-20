@@ -180,7 +180,7 @@ class AutoEQApplication {
         console.log("[MAIN] Cleared captured data from optimization manager");
       }
     });
-    
+
     // Connect UI manager output device change callback to audio player
     this.uiManager.setOutputDeviceChangeCallback((deviceId) => {
       if (this.audioPlayer) {

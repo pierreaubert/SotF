@@ -3,17 +3,20 @@
  * Separates audio capture functionality from UI concerns
  */
 
-import { AudioProcessor, type CaptureResult } from '@audio-player/audio-processor';
-import { AudioDeviceManager } from './device-manager';
+import {
+  AudioProcessor,
+  type CaptureResult,
+} from "@audio-player/audio-processor";
+import { AudioDeviceManager } from "./device-manager";
 
 export interface CaptureParameters {
   inputDevice: string;
   outputDevice: string;
-  outputChannel: 'left' | 'right' | 'both' | 'default';
-  signalType: 'sweep' | 'white' | 'pink';
+  outputChannel: "left" | "right" | "both" | "default";
+  signalType: "sweep" | "white" | "pink";
   duration: number;
   sampleRate: number;
-  inputVolume: number;  // 0-100
+  inputVolume: number; // 0-100
   outputVolume: number; // 0-100
 }
 
@@ -43,19 +46,13 @@ export class CaptureController {
     output: DeviceInfo[];
   }> {
     const devices = await this.deviceManager.enumerateDevices();
-    
-    const inputList = this.deviceManager.getDeviceList('input');
-    const outputList = this.deviceManager.getDeviceList('output');
-    
+
+    const inputList = this.deviceManager.getDeviceList("input");
+    const outputList = this.deviceManager.getDeviceList("output");
+
     return {
-      input: [
-        { value: 'default', label: 'System Default' },
-        ...inputList
-      ],
-      output: [
-        { value: 'default', label: 'System Default' },
-        ...outputList
-      ]
+      input: [{ value: "default", label: "System Default" }, ...inputList],
+      output: [{ value: "default", label: "System Default" }, ...outputList],
     };
   }
 
@@ -64,21 +61,25 @@ export class CaptureController {
    */
   async startCapture(params: CaptureParameters): Promise<CaptureResult> {
     if (this.isCapturing) {
-      throw new Error('Capture already in progress');
+      throw new Error("Capture already in progress");
     }
 
     try {
       this.isCapturing = true;
 
       // Map device IDs from cpal to WebAudio
-      const webAudioInputDevice = this.deviceManager.mapToWebAudioDeviceId(params.inputDevice);
-      const webAudioOutputDevice = this.deviceManager.mapToWebAudioDeviceId(params.outputDevice);
+      const webAudioInputDevice = this.deviceManager.mapToWebAudioDeviceId(
+        params.inputDevice,
+      );
+      const webAudioOutputDevice = this.deviceManager.mapToWebAudioDeviceId(
+        params.outputDevice,
+      );
 
-      console.log('[CaptureController] Device ID mapping:', {
+      console.log("[CaptureController] Device ID mapping:", {
         cpalInput: params.inputDevice,
         webAudioInput: webAudioInputDevice,
         cpalOutput: params.outputDevice,
-        webAudioOutput: webAudioOutputDevice
+        webAudioOutput: webAudioOutputDevice,
       });
 
       // Create and configure audio processor
@@ -91,14 +92,15 @@ export class CaptureController {
       this.audioProcessor.setOutputVolume(params.outputVolume);
       this.audioProcessor.setOutputDevice(webAudioOutputDevice);
 
-      console.log('[CaptureController] Starting capture with parameters:', {
+      console.log("[CaptureController] Starting capture with parameters:", {
         ...params,
         webAudioInputDevice,
-        webAudioOutputDevice
+        webAudioOutputDevice,
       });
 
       // Start the actual capture
-      const result = await this.audioProcessor.startCapture(webAudioInputDevice);
+      const result =
+        await this.audioProcessor.startCapture(webAudioInputDevice);
 
       // Cleanup on success
       if (result.success) {
@@ -116,12 +118,12 @@ export class CaptureController {
    * Stop the current capture
    */
   stopCapture(): void {
-    console.log('[CaptureController] Stopping capture');
-    
+    console.log("[CaptureController] Stopping capture");
+
     if (this.audioProcessor) {
       this.audioProcessor.stopCapture();
     }
-    
+
     this.cleanup();
   }
 
@@ -130,7 +132,7 @@ export class CaptureController {
    */
   private cleanup(): void {
     this.isCapturing = false;
-    
+
     if (this.audioProcessor) {
       this.audioProcessor.destroy();
       this.audioProcessor = null;

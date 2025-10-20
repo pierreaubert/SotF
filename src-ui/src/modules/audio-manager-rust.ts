@@ -116,9 +116,7 @@ export class AudioManagerRust {
   /**
    * Subscribe to audio state changes (play, pause, stop, etc.)
    */
-  onStateChange(
-    listener: (event: AudioStateChangedEvent) => void,
-  ): () => void {
+  onStateChange(listener: (event: AudioStateChangedEvent) => void): () => void {
     this.stateChangeListeners.push(listener);
     return () => {
       const index = this.stateChangeListeners.indexOf(listener);
@@ -319,9 +317,7 @@ export class AudioManagerRust {
       while (polling) {
         try {
           const peak = await this.getSignalPeak();
-          this.signalPeakListeners.forEach((listener) =>
-            listener({ peak }),
-          );
+          this.signalPeakListeners.forEach((listener) => listener({ peak }));
         } catch (error) {
           // Ignore errors during polling
         }

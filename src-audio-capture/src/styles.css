@@ -627,7 +627,9 @@ input[type="checkbox"] {
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-  transition: opacity 0.3s ease, max-height 0.3s ease;
+  transition:
+    opacity 0.3s ease,
+    max-height 0.3s ease;
 }
 
 .status-message.show {
@@ -1499,7 +1501,9 @@ input[type="checkbox"] {
   color: var(--text-primary);
   font-size: 13px;
   min-width: 120px;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
 }
 
 .capture-control-inline select:focus {
@@ -1665,7 +1669,9 @@ input[type="checkbox"] {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 14px;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition:
+    border-color 0.3s,
+    box-shadow 0.3s;
 }
 
 /* Device status feedback */
@@ -1690,12 +1696,12 @@ input[type="checkbox"] {
     background: rgba(36, 37, 41, 0.6);
     border-color: rgba(255, 255, 255, 0.1);
   }
-  
+
   .capture-control-group select.device-success {
     border-color: var(--success-color);
     box-shadow: 0 0 0 2px rgba(87, 242, 135, 0.2);
   }
-  
+
   .capture-control-group select.device-error {
     border-color: var(--danger-color);
     box-shadow: 0 0 0 2px rgba(237, 66, 69, 0.2);
@@ -1709,7 +1715,7 @@ input[type="checkbox"] {
   background: var(--bg-accent);
   color: var(--text-secondary);
   font-size: 14px;
-  font-family: 'Monaco', 'Courier New', monospace;
+  font-family: "Monaco", "Courier New", monospace;
   cursor: not-allowed;
 }
 
@@ -2037,13 +2043,13 @@ input[type="checkbox"] {
   .routing-matrix-container {
     padding: var(--spacing-sm);
   }
-  
+
   .routing-matrix-cell {
     min-width: 28px;
     min-height: 28px;
     font-size: 11px;
   }
-  
+
   .routing-matrix-label-cell {
     min-width: 60px;
     font-size: 10px;
@@ -2071,7 +2077,10 @@ input[type="checkbox"] {
   border-right: 2px solid var(--border-color);
   display: flex;
   flex-direction: column;
-  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+  transition:
+    width 0.3s ease,
+    min-width 0.3s ease,
+    max-width 0.3s ease;
   position: relative;
   height: 100%;
   flex-shrink: 0;
@@ -2083,7 +2092,10 @@ input[type="checkbox"] {
   max-width: 0;
   border: none;
   overflow: visible; /* Keep toggle button visible */
-  transition: width 0.3s ease, min-width 0.3s ease, max-width 0.3s ease;
+  transition:
+    width 0.3s ease,
+    min-width 0.3s ease,
+    max-width 0.3s ease;
 }
 
 .capture-records-sidebar.collapsed .records-header {
@@ -2347,16 +2359,16 @@ input[type="checkbox"] {
     border-color: rgba(255, 255, 255, 0.1);
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
   }
-  
+
   .capture-smoothing-select {
     background: var(--bg-secondary);
     border-color: rgba(255, 255, 255, 0.1);
   }
-  
+
   .capture-smoothing-select:hover {
     border-color: rgba(255, 255, 255, 0.2);
   }
-  
+
   .capture-smoothing-select:focus {
     border-color: var(--button-primary);
     box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.2);
@@ -2573,15 +2585,15 @@ input[type="checkbox"] {
     min-height: 90vh;
     max-width: 95vw;
   }
-  
+
   .capture-controls-row {
     flex-direction: column;
   }
-  
+
   .capture-control-group {
     min-width: auto;
   }
-  
+
   .modal-content {
     width: 95%;
     margin: var(--spacing-md);

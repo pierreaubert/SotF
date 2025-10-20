@@ -6,6 +6,10 @@ edition = { workspace = true }
 name = "autoeq_backend"
 path = "src/lib.rs"
 
+[[bin]]
+name = "audio_test"
+path = "bin/audio_test.rs"
+
 [dependencies]
 autoeq = { workspace = true }
 ndarray = { workspace = true }
@@ -14,3 +18,14 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 cpal = { workspace = true }
 tauri = { workspace = true }
+tokio = { workspace = true }
+tokio-tungstenite = { workspace = true }
+futures-util = { workspace = true }
+tempfile = { workspace = true }
+serde_yaml = { workspace = true }
+which = { workspace = true }
+clap = { workspace = true }
+ctrlc = { workspace = true }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

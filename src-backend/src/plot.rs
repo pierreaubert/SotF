@@ -167,7 +167,8 @@ pub fn generate_optimization_plots(params: OptimizationPlotParams) -> Optimizati
         frequencies: plot_freqs.clone(),
         curves: {
             let mut curves = HashMap::new();
-            let input_interpolated = autoeq::read::interpolate(&plot_freqs_array, params.input_curve);
+            let input_interpolated =
+                autoeq::read::interpolate(&plot_freqs_array, params.input_curve);
             curves.insert("Input".to_string(), input_interpolated.spl.to_vec());
             curves
         },

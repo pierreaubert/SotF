@@ -1,5 +1,5 @@
+use crate::plot::{OptimizationPlotParams, PlotData, generate_optimization_plots};
 use autoeq::{LossType, cli::Args as AutoEQArgs};
-use crate::plot::{PlotData, generate_optimization_plots, OptimizationPlotParams};
 use ndarray::Array1;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
@@ -711,4 +711,3 @@ pub async fn run_optimization_internal(
         deviation_curve: Some(plots.deviation_curve),
     })
 }
-

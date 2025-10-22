@@ -1,0 +1,10 @@
+pub mod about_modal;
+pub mod audio_capture;
+pub mod audio_interface;
+pub mod audio_player;
+pub mod eq_customization;
+pub mod eq_design;
+pub mod filter_display;
+pub mod frequency_plot;
+pub mod routing_matrix;
+pub mod workflow_navigator;

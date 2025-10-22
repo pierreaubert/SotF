@@ -9,9 +9,11 @@ use tauri::{AppHandle, State};
 
 // Import from autoeq_backend
 use autoeq_backend::{
-    CancellationState, OptimizationParams, OptimizationResult, PlotFiltersParams, PlotSpinParams,
-    SharedAudioState, audio, curve_data_to_curve, plot_to_json, run_optimization_internal,
+    CancellationState, OptimizationParams, OptimizationResult, SharedAudioState, audio,
+    curve_data_to_curve,
 };
+use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
+use autoeq_backend::optim::run_optimization_internal;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]

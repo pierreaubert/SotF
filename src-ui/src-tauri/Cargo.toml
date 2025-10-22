@@ -44,9 +44,9 @@ blas-src = { version = "0.14", features = ["openblas"] }
 openblas-src = { version = "0.10", features = ["cblas", "system"] }
 
 [target.'cfg(all(target_os = "windows", target_arch = "x86_64"))'.dependencies]
-# BLAS: Use Intel MKL on Windows x86_64
+# BLAS: Use Intel MKL on Windows x86_64 (dynamic, LP64, parallel with Intel OpenMP)
 blas-src = { version = "0.14", features = ["intel-mkl-dynamic-parallel"] }
-intel-mkl-src = "0.8.1"
+intel-mkl-src = { version = "0.8.1", features = ["mkl-dynamic-lp64-iomp"] }
 
 [target.'cfg(all(target_os = "windows", target_arch = "aarch64"))'.dependencies]
 # BLAS: Intel MKL not supported on ARM, use OpenBLAS

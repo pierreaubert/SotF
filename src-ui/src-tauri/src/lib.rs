@@ -11,18 +11,11 @@ use tauri::{AppHandle, Emitter, State};
 use autoeq_backend::optim::{run_optimization_internal, ProgressCallback, ProgressUpdate};
 use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
 use autoeq_backend::{
-<<<<<<< HEAD
-    CancellationState, OptimizationParams, OptimizationResult, SharedAudioState, audio,
+    AudioManager, CancellationState, OptimizationParams, OptimizationResult, SharedAudioState, audio,
     curve_data_to_curve,
 };
-use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
-use autoeq_backend::optim::run_optimization_internal;
-=======
-    AudioManager, CancellationState, OptimizationParams, OptimizationResult, SharedAudioState,
-    curve_data_to_curve,
-};
+use autoeq_backend::camilla::ChannelMapMode;
 use tokio::sync::Mutex;
->>>>>>> cecce10 (fix: sweeps storing/recalling)
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -401,6 +394,8 @@ async fn audio_start_playback(
             sample_rate,
             channels,
             filters,
+            ChannelMapMode::Normal,
+            None,
         )
         .await;
 
@@ -518,6 +513,7 @@ async fn audio_start_recording(
             input_device.clone(),
             sample_rate,
             channels,
+            None,
         )
         .await;
 

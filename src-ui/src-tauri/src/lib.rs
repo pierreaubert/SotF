@@ -220,7 +220,8 @@ async fn generate_plot_filters(params: PlotFiltersParams) -> Result<serde_json::
         adaptive_weight_cr: 0.9,
         no_parallel: false,
         parallel_threads: 0,
-        qa: false, // Quality assurance mode disabled for UI
+        seed: None, // Random seed for deterministic optimization (None = random)
+        qa: None, // Quality assurance mode disabled for UI (None = disabled)
     };
 
     // Generate the plot

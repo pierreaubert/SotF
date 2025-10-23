@@ -428,7 +428,8 @@ pub async fn run_optimization_internal<P: ProgressCallback + 'static>(
         adaptive_weight_cr: params.adaptive_weight_cr.unwrap_or(0.7), // Adaptive weight for CR
         no_parallel: false,
         parallel_threads: 0,
-        qa: false, // Quality assurance mode disabled for UI
+        seed: None, // Random seed for deterministic optimization (None = random)
+        qa: None, // Quality assurance mode disabled for UI (None = disabled)
     };
 
     // Load input data (following autoeq.rs pattern)

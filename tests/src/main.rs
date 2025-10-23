@@ -4,7 +4,7 @@ fn main() {
     // Let X = [1.0, 2.0, 3.0]
     // Let Y = [4.0, 5.0, 6.0]
 
-    let		mut x: Vec<f64> = vec![1.0, 2.0, 3.0];
+    let	x: Vec<f64> = vec![1.0, 2.0, 3.0];
     let mut     y: Vec<f64> = vec![4.0, 5.0, 6.0];
     let a: f64 = 2.0;
     let n: i32 = x.len() as i32;

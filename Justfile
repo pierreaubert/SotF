@@ -1,6 +1,6 @@
 # --------------------------------------------------------- -*- just -*-
 # How to install Just?
-#     cargo install just
+#	  cargo install just
 # ----------------------------------------------------------------------
 
 # List all available commands
@@ -125,32 +125,46 @@ install-macos:
 	# need brew
 	brew install npm
 
-install-ubuntu-arm:
-        sudo apt install -y \
-             curl \
-             build-essential gcc g++ \
-             pkg-config \
-             libssl-dev \
-             ca-certificates \
-             cmake \
-             ninja-build \
-             perl \
-             rustup \
-             just \
-             libglib2.0-dev \
-             libgtk-3-dev \
-             libwebkit2gtk-4.1-dev \
-             libayatana-appindicator3-dev \
-             librsvg2-dev \
-             patchelf \
-             libopenblas-dev \
-             gfortran \
-             chromium-browser \
-             chromium-chromedriver
-        # node
-        sudo npm cache clean -f
-        sudo npm install -f n
-        sudo n stable
+install-ubuntu-common:
+		sudo apt install -y \
+			 curl \
+			 build-essential gcc g++ \
+			 pkg-config \
+			 libssl-dev \
+			 ca-certificates \
+			 cmake \
+			 ninja-build \
+			 perl \
+			 rustup \
+			 just \
+			 libglib2.0-dev \
+			 libgtk-3-dev \
+			 libwebkit2gtk-4.1-dev \
+			 libayatana-appindicator3-dev \
+			 librsvg2-dev \
+			 patchelf \
+			 libopenblas-dev \
+			 gfortran \
+			 libasound2-dev
+
+install-ubuntu-x86-driver :
+		sudo apt install -y \
+			 chromium-browser \
+			 chromium-chromedriver
+
+install-ubuntu-arm64-driver :
+		sudo apt install -y firefox
+		# where is the geckodriver ?
+
+install-ubuntu-node:
+		# node
+		sudo npm cache clean -f
+		sudo npm install -f n
+		sudo n stable
+
+install-ubuntu-x86: install-ubuntu-common install-ubuntu-x86-driver install-ubuntu-node
+
+install-ubuntu-arm64: install-ubuntu-common install-ubuntu-arm64-driver install-ubuntu-node
 
 
 # ----------------------------------------------------------------------

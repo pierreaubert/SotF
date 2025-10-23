@@ -687,20 +687,21 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 
 [[package]]
 name = "autoeq"
-version = "0.2.240"
+version = "0.2.246"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f933c18dffedd0f7461473780b3513d82da3886f001d6966d1f623ce07470c6a"
+checksum = "1812b94b7ec7674f248b4126d16d4ab379be9f05110890104b29caf5949a275a"
 dependencies = [
  "accelerate-src",
  "autoeq-cea2034",
  "autoeq-de",
  "autoeq-env",
  "autoeq-iir",
- "blas-src 0.12.1",
+ "blas-src 0.14.0",
  "build_html",
  "chrono",
  "clap",
  "csv",
+ "intel-mkl-src",
  "metaheuristics-nature",
  "ndarray",
  "nlopt",
@@ -5690,6 +5691,7 @@ dependencies = [
  "portable-atomic",
  "portable-atomic-util",
  "rawpointer",
+ "rayon",
  "serde",
 ]
 

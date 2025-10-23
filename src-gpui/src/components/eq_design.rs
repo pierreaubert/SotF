@@ -137,13 +137,23 @@ impl EQDesignComponent {
     }
 
     /// Cancel ongoing optimization
-    fn cancel_optimization(&mut self, cx: &mut Context<Self>) {
+    pub fn cancel_optimization(&mut self, cx: &mut Context<Self>) {
         if let Some(cancellation) = &self.cancellation_state {
             cancellation.cancel();
             log::info!("[EQDesign] Optimization cancellation requested");
         }
         self.optimization_status = OptimizationStatus::Error("Cancelled by user".to_string());
         self.cancellation_state = None;
+        cx.notify();
+    }
+
+    pub fn toggle_refine(&mut self, cx: &mut Context<Self>) {
+        self.refine = !self.refine;
+        cx.notify();
+    }
+
+    pub fn toggle_smooth(&mut self, cx: &mut Context<Self>) {
+        self.smooth = !self.smooth;
         cx.notify();
     }
 

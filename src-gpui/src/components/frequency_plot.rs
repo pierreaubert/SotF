@@ -43,6 +43,26 @@ impl FrequencyPlotComponent {
         cx.notify();
     }
 
+    pub fn recalculate_optimized_curve(&mut self, cx: &mut Context<Self>) {
+        if let (Some(input), Some(filter_plot)) = (&self.input_curve, &self.filter_response) {
+            if let Some(eq_response) = filter_plot.curves.get("EQ Response") {
+                // Ensure frequencies match, or interpolate if necessary
+                // For simplicity, we'll assume they match for now
+                if input.freq.len() == eq_response.len() {
+                    let optimized_spl: Vec<f64> = input.spl.iter().zip(eq_response.iter())
+                        .map(|(a, b)| a + b)
+                        .collect();
+
+                    self.optimized_curve = Some(CurveData {
+                        freq: input.freq.clone(),
+                        spl: optimized_spl,
+                    });
+                    cx.notify();
+                }
+            }
+        }
+    }
+
     pub fn set_filter_response(&mut self, plot_data: PlotData, cx: &mut Context<Self>) {
         self.filter_response = Some(plot_data);
         cx.notify();

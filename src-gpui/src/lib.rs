@@ -5,9 +5,9 @@
 #![recursion_limit = "256"]
 
 pub mod app_setup;
+pub mod app_theme;
 pub mod components;
 pub mod design;
-pub mod theme;
 pub mod workflows;
 
 // Re-export commonly used types from the backend

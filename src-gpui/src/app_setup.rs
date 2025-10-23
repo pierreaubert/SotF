@@ -1,7 +1,7 @@
 /// Common application setup for main app and examples
 /// Provides menu bar, keyboard shortcuts, and platform-specific functionality
 use gpui::*;
-use crate::theme::{self, ThemeVariant};
+use crate::app_theme::{self, ThemeVariant};
 
 /// Setup menu bar with common actions
 pub fn setup_menu(cx: &mut App) {
@@ -167,24 +167,24 @@ pub fn register_action_handlers(cx: &mut App) {
     cx.on_action(|_action: &Quit, cx| {
         cx.quit();
     });
-    
+
     // Note: Workflow and dialog actions will be handled by the views themselves
     // These are just placeholders for the menu items
     cx.on_action(|_action: &LoadProject, _cx| {
         log::info!("Load Project menu selected");
         // TODO: Implement project loading
     });
-    
+
     cx.on_action(|_action: &SaveProject, _cx| {
         log::info!("Save Project menu selected");
         // TODO: Implement project saving
     });
-    
+
     cx.on_action(|_action: &ShowHelp, _cx| {
         log::info!("Show Help menu selected");
         // TODO: Open help documentation
     });
-    
+
     cx.on_action(|_action: &ShowSupport, _cx| {
         // Open GitHub issues URL
         let url = "https://github.com/pierreaubert/autoEQ-app/issues";
@@ -192,30 +192,33 @@ pub fn register_action_handlers(cx: &mut App) {
             log::error!("Failed to open URL {}: {}", url, e);
         }
     });
-    
+
     // Theme actions
-    cx.on_action(|_action: &SetThemeLight, _cx| {
-        theme::set_theme(ThemeVariant::Light);
+    // Note: Theme changes take effect immediately and will be visible on next window update
+    // Any interaction (mouse move, click, etc.) will trigger a repaint
+    cx.on_action(|_action: &SetThemeLight, cx| {
+        app_theme::set_theme(ThemeVariant::Light);
         log::info!("Theme changed to Light");
-        // Theme will be applied on next render
+        // Force window update by scheduling a refresh
+        cx.defer(|_| {});
     });
-    
-    cx.on_action(|_action: &SetThemeDark, _cx| {
-        theme::set_theme(ThemeVariant::Dark);
+
+    cx.on_action(|_action: &SetThemeDark, cx| {
+        app_theme::set_theme(ThemeVariant::Dark);
         log::info!("Theme changed to Dark");
-        // Theme will be applied on next render
+        cx.defer(|_| {});
     });
-    
-    cx.on_action(|_action: &SetThemeBlue, _cx| {
-        theme::set_theme(ThemeVariant::Blue);
+
+    cx.on_action(|_action: &SetThemeBlue, cx| {
+        app_theme::set_theme(ThemeVariant::Blue);
         log::info!("Theme changed to Blue");
-        // Theme will be applied on next render
+        cx.defer(|_| {});
     });
-    
-    cx.on_action(|_action: &SetThemeHighContrast, _cx| {
-        theme::set_theme(ThemeVariant::HighContrast);
+
+    cx.on_action(|_action: &SetThemeHighContrast, cx| {
+        app_theme::set_theme(ThemeVariant::HighContrast);
         log::info!("Theme changed to High Contrast");
-        // Theme will be applied on next render
+        cx.defer(|_| {});
     });
 }
 

@@ -1,5 +1,6 @@
 use autoeq_backend::{CurveData, OptimizationParams, OptimizationResult};
 use gpui::*;
+use gpui::prelude::*;
 
 pub struct RoomWorkflow {
     current_step: usize,
@@ -10,13 +11,16 @@ pub struct RoomWorkflow {
     population: usize,
     maxeval: usize,
     optimization_result: Option<OptimizationResult>,
+    pub focus_handle: FocusHandle,
     is_recording: bool,
 }
 
 impl RoomWorkflow {
-    pub fn new() -> Self {
+    pub fn new(cx: &mut Context<Self>) -> Self {
+        let focus_handle = cx.focus_handle();
         Self {
             current_step: 0,
+            focus_handle,
             room_measurement: None,
             corrected_response: None,
             num_filters: 10, // Rooms typically need more filters for modes
@@ -170,61 +174,154 @@ impl RoomWorkflow {
     }
 }
 
+
 impl Render for RoomWorkflow {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let steps = vec![
-            "Audio Capture",
-            "EQ Design",
-            "Display Curves",
-            "Audio Player",
-            "Save EQ",
+            "Upload Measurement",
+            "Analyze Room Response",
+            "Optimize Correction",
+            "Display Results",
+            "Export Filters",
         ];
-        let total = steps.len();
+        
+        let window_width: f32 = window.bounds().size.width.into();
+        let total_steps = steps.len();
 
         div()
+            .track_focus(&self.focus_handle)
             .flex()
             .flex_col()
-            .gap_6()
-            .child(self.render_step_navigator(&steps))
-            .child(self.render_step_content(&steps, cx))
-            .child(self.render_navigation_buttons(total, cx))
+            .w_full()
+            .h_full()
+            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _window, cx| {
+                // Right arrow: next step
+                if event.keystroke.key == "right" && !event.keystroke.modifiers.control {
+                    if this.current_step < total_steps - 1 {
+                        this.next_step(cx);
+                    }
+                }
+                // Left arrow: previous step
+                else if event.keystroke.key == "left" && !event.keystroke.modifiers.control {
+                    if this.current_step > 0 {
+                        this.prev_step(cx);
+                    }
+                }
+                // Esc or Ctrl-G: interrupt optimization (if running)
+                else if event.keystroke.key == "escape" 
+                    || (event.keystroke.key == "g" && event.keystroke.modifiers.control) {
+                    log::info!("[RoomWorkflow] Optimization cancellation requested via keyboard");
+                    // Room workflow would handle cancellation here if optimization is running
+                    cx.notify();
+                }
+            }))
+            .child(self.render_step_navigator(&steps, window_width, cx))
+            .child(
+                div()
+                    .flex_1()
+                    .p_4()
+                    .child(self.render_step_content(&steps, cx)),
+            )
     }
 }
 
 impl RoomWorkflow {
-    fn render_step_navigator(&self, steps: &[&str]) -> Div {
+    fn render_step_navigator(&self, steps: &[&str], window_width: f32, cx: &mut Context<Self>) -> Div {
+        let show_numbers = window_width > 600.0;
+        
         div()
             .flex()
             .flex_row()
-            .gap_2()
             .items_center()
+            .justify_between()
+            .w_full()
             .p_4()
             .bg(rgb(0xffffff))
             .rounded(px(8.0))
             .border_1()
             .border_color(rgb(0xdddddd))
-            .children((0..steps.len()).map(|i| {
-                let is_active = i == self.current_step;
-                let is_done = i < self.current_step;
-
+            .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .w(px(32.0))
-                    .h(px(32.0))
-                    .rounded(px(16.0))
-                    .bg(if is_active {
+                    .px_4()
+                    .py_2()
+                    .rounded(px(6.0))
+                    .bg(if self.current_step > 0 {
                         rgb(0x4a90e2)
-                    } else if is_done {
-                        rgb(0x50c878)
                     } else {
                         rgb(0xcccccc)
                     })
                     .text_color(rgb(0xffffff))
-                    .font_weight(FontWeight::BOLD)
-                    .child((i + 1).to_string())
-            }))
+                    .cursor(if self.current_step > 0 {
+                        CursorStyle::PointingHand
+                    } else {
+                        CursorStyle::Arrow
+                    })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            if this.current_step > 0 {
+                                this.prev_step(cx);
+                            }
+                        }),
+                    )
+                    .child("←"),
+            )
+            .when(show_numbers, |parent_div| {
+                parent_div.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .items_center()
+                        .children((0..steps.len()).map(|i| {
+                            let is_active = i == self.current_step;
+                            let is_done = i < self.current_step;
+
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .w(px(32.0))
+                                .h(px(32.0))
+                                .rounded(px(16.0))
+                                .bg(if is_active {
+                                    rgb(0x4a90e2)
+                                } else if is_done {
+                                    rgb(0x50c878)
+                                } else {
+                                    rgb(0xcccccc)
+                                })
+                                .text_color(rgb(0xffffff))
+                                .font_weight(FontWeight::BOLD)
+                                .cursor_pointer()
+                                .child((i + 1).to_string())
+                        })),
+                )
+            })
+            .child(
+                div()
+                    .px_4()
+                    .py_2()
+                    .rounded(px(6.0))
+                    .bg(if self.current_step < steps.len() - 1 {
+                        rgb(0x4a90e2)
+                    } else {
+                        rgb(0x50c878)
+                    })
+                    .text_color(rgb(0xffffff))
+                    .cursor_pointer()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.next_step(cx);
+                        }),
+                    )
+                    .child(if self.current_step < steps.len() - 1 {
+                        "→"
+                    } else {
+                        "✓"
+                    }),
+            )
     }
 
     fn render_step_content(&mut self, steps: &[&str], cx: &mut Context<Self>) -> Div {
@@ -258,63 +355,6 @@ impl RoomWorkflow {
             })
     }
 
-    fn render_navigation_buttons(&mut self, total: usize, cx: &mut Context<Self>) -> Div {
-        div()
-            .flex()
-            .flex_row()
-            .gap_4()
-            .justify_between()
-            .child(
-                div()
-                    .px_6()
-                    .py_3()
-                    .rounded(px(6.0))
-                    .bg(if self.current_step > 0 {
-                        rgb(0x4a90e2)
-                    } else {
-                        rgb(0xcccccc)
-                    })
-                    .text_color(rgb(0xffffff))
-                    .cursor(if self.current_step > 0 {
-                        CursorStyle::PointingHand
-                    } else {
-                        CursorStyle::Arrow
-                    })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, cx| {
-                            if this.current_step > 0 {
-                                this.prev_step(cx);
-                            }
-                        }),
-                    )
-                    .child("← Previous"),
-            )
-            .child(
-                div()
-                    .px_6()
-                    .py_3()
-                    .rounded(px(6.0))
-                    .bg(if self.current_step < total - 1 {
-                        rgb(0x4a90e2)
-                    } else {
-                        rgb(0x50c878)
-                    })
-                    .text_color(rgb(0xffffff))
-                    .cursor_pointer()
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, cx| {
-                            this.next_step(cx);
-                        }),
-                    )
-                    .child(if self.current_step < total - 1 {
-                        "Next →"
-                    } else {
-                        "Finish ✓"
-                    }),
-            )
-    }
 
     fn render_step_1(&mut self, cx: &mut Context<Self>) -> Div {
         let has_measurement = self.room_measurement.is_some();

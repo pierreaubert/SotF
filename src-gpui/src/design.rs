@@ -5,84 +5,86 @@ use gpui::*;
 // Color Palette (Theme-aware - dynamically loads current theme)
 pub mod colors {
     use gpui::*;
-    use crate::theme;
+    use crate::app_theme;
 
     // Primary colors
     pub fn bg_primary() -> Hsla {
-        theme::colors().bg_primary
+        app_theme::colors().bg_primary
     }
     pub fn bg_secondary() -> Hsla {
-        theme::colors().bg_secondary
+        app_theme::colors().bg_secondary
     }
     pub fn bg_accent() -> Hsla {
-        theme::colors().bg_accent
+        app_theme::colors().bg_accent
     }
 
     // Text colors
     pub fn text_primary() -> Hsla {
-        theme::colors().text_primary
+        app_theme::colors().text_primary
     }
     pub fn text_secondary() -> Hsla {
-        theme::colors().text_secondary
+        app_theme::colors().text_secondary
     }
 
     // Border colors
     pub fn border() -> Hsla {
-        theme::colors().border
+        app_theme::colors().border
     }
     pub fn border_active() -> Hsla {
-        theme::colors().border_active
+        app_theme::colors().border_active
     }
 
     // Button colors
     pub fn button_primary() -> Hsla {
-        theme::colors().button_primary
+        app_theme::colors().button_primary
     }
     pub fn button_primary_hover() -> Hsla {
-        theme::colors().button_primary_hover
+        app_theme::colors().button_primary_hover
     }
     pub fn button_secondary() -> Hsla {
-        theme::colors().button_secondary
+        app_theme::colors().button_secondary
     }
     pub fn button_secondary_hover() -> Hsla {
-        theme::colors().button_secondary_hover
+        app_theme::colors().button_secondary_hover
     }
 
     // Status colors
     pub fn success() -> Hsla {
-        theme::colors().success
+        app_theme::colors().success
     }
     pub fn warning() -> Hsla {
-        theme::colors().warning
+        app_theme::colors().warning
     }
     pub fn danger() -> Hsla {
-        theme::colors().danger
+        app_theme::colors().danger
     }
     pub fn info() -> Hsla {
-        theme::colors().info
+        app_theme::colors().info
     }
 
     // Selection/highlight colors
     pub fn select_bg() -> Hsla {
-        theme::colors().select_bg
+        app_theme::colors().select_bg
     }
     pub fn select_border() -> Hsla {
-        theme::colors().select_border
+        app_theme::colors().select_border
     }
     pub fn hover_bg() -> Hsla {
-        theme::colors().hover_bg
+        app_theme::colors().hover_bg
     }
 }
 
-// Spacing constants (matching styles.css)
+// Spacing constants (with compact variants for dense layouts)
 pub mod spacing {
     use gpui::*;
 
+    pub const XXS: Pixels = px(2.0);
     pub const XS: Pixels = px(4.0);
-    pub const SM: Pixels = px(8.0);
-    pub const MD: Pixels = px(12.0);
-    pub const LG: Pixels = px(16.0);
-    pub const XL: Pixels = px(24.0);
+    pub const SM: Pixels = px(6.0);  // Reduced from 8px
+    pub const MD: Pixels = px(8.0);  // Reduced from 12px
+    pub const LG: Pixels = px(12.0); // Reduced from 16px
+    pub const XL: Pixels = px(16.0); // Reduced from 24px
+    pub const XXL: Pixels = px(24.0);
 }
 
 // Border radius

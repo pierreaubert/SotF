@@ -24,6 +24,7 @@ pub struct HeadphoneWorkflow {
     available_targets: Vec<String>,
     selected_target_index: usize, // 0 = Flat, 1+ = target curves
     show_target_dropdown: bool,
+    pub focus_handle: FocusHandle,
 }
 
 impl HeadphoneWorkflow {
@@ -31,15 +32,14 @@ impl HeadphoneWorkflow {
         let plot_component = cx.new(|_cx| FrequencyPlotComponent::new(600.0, 400.0));
         let filter_display = cx.new(|_cx| FilterDisplayComponent::new(Vec::new()));
         let audio_interface = cx.new(|cx| AudioInterfaceComponent::new(cx));
+        let focus_handle = cx.focus_handle();
         let eq_design = cx.new(|_cx| {
-            let component = EQDesignComponent::new();
-            // Set headphone-specific defaults
-            component
+            EQDesignComponent::new()
         });
 
         // Discover available target curves from public/headphone-targets
         let mut available_targets = vec!["Flat (0 dB)".to_string()];
-        
+
         // Try to read target curve directory (relative to project root)
         let target_dir = PathBuf::from("../public/headphone-targets");
         if let Ok(entries) = std::fs::read_dir(&target_dir) {
@@ -86,6 +86,7 @@ impl HeadphoneWorkflow {
             available_targets,
             selected_target_index: 0, // Default to Flat
             show_target_dropdown: false,
+            focus_handle,
         }
     }
 
@@ -132,6 +133,7 @@ impl HeadphoneWorkflow {
 
         // If we have a result, process it outside the closure
         if let Some(result) = optimization_data {
+            log::info!("[Workflow] Updating plots with optimization result: {:?}", result);
             // Store the full result
             self.optimization_result = Some(result.clone());
 
@@ -149,29 +151,33 @@ impl HeadphoneWorkflow {
                 });
             }
 
-            // Update plot component with optimization results
-            if let Some(filter_response) = &result.filter_response {
-                self.plot_component.update(cx, |plot, cx| {
-                    plot.set_filter_response(filter_response.clone(), cx);
-                });
-            }
-
-            // Create optimized curve from input + filter response
-            if let (Some(input), Some(filter_resp)) = (&self.input_curve, &result.filter_response) {
-                // Find EQ Response curve in filter_response
-                if let Some(eq_response) = filter_resp.curves.get("EQ Response") {
-                    // Create optimized curve by adding EQ to input
-                    let optimized = CurveData {
-                        freq: filter_resp.frequencies.clone(),
-                        spl: input.spl.iter().zip(eq_response.iter())
-                            .map(|(inp, eq)| inp + eq)
-                            .collect(),
-                    };
-                    self.plot_component.update(cx, |plot, cx| {
-                        plot.set_optimized_curve(optimized, cx);
-                    });
+            // Update plot component with all available plot data
+            self.plot_component.update(cx, |plot, cx| {
+                if let Some(input_curve_plot) = &result.input_curve {
+                    if let Some(curve) = input_curve_plot.curves.get("Input") {
+                        plot.set_input_curve(CurveData { freq: input_curve_plot.frequencies.clone(), spl: curve.clone() }, cx);
+                    }
                 }
-            }
+
+                if let Some(filter_response_plot) = &result.filter_response {
+                    if let Some(eq_response) = filter_response_plot.curves.get("EQ Response") {
+                        plot.set_filter_response(filter_response_plot.clone(), cx);
+
+                        // Also update the target curve from the same plot data
+                        if let Some(target_spl) = filter_response_plot.curves.get("Target") {
+                            let target_curve = CurveData {
+                                freq: filter_response_plot.frequencies.clone(),
+                                spl: target_spl.clone(),
+                            };
+                            plot.set_target_curve(target_curve, cx);
+                        }
+                    }
+                }
+
+                // Re-calculate and set the optimized curve
+                plot.recalculate_optimized_curve(cx);
+            });
+
 
             cx.notify();
         }
@@ -226,7 +232,7 @@ impl HeadphoneWorkflow {
             .to_lowercase()
             .replace(' ', "-")
             + ".csv";
-        
+
         let file_path = PathBuf::from("../public/headphone-targets").join(&file_name);
         log::info!("Attempting to load target from: {:?}", file_path);
 
@@ -453,41 +459,60 @@ impl HeadphoneWorkflow {
             }
         }
     }
-
 }
 
+
 impl Render for HeadphoneWorkflow {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let steps = vec![
             "Select Curve & Target",
-            "EQ Design",
-            "Display Curve",
-            "Audio Player",
-            "Save EQ",
+            "Design an EQ",
+            "Display Curves",
+            "Export Results",
+            "Final Review",
         ];
-        let total = steps.len();
+
+        let window_width: f32 = window.bounds().size.width.into();
+        let total_steps = steps.len();
 
         div()
+            .track_focus(&self.focus_handle)
             .flex()
             .flex_col()
             .w_full()
             .h_full()
-            .child(self.render_step_navigator(&steps))
+            .on_key_down(cx.listener(move |this, event: &KeyDownEvent, _window, cx| {
+                // Right arrow: next step
+                if event.keystroke.key == "right" && !event.keystroke.modifiers.control {
+                    if this.current_step < total_steps - 1 {
+                        this.next_step(cx);
+                    }
+                }
+                // Left arrow: previous step
+                else if event.keystroke.key == "left" && !event.keystroke.modifiers.control {
+                    if this.current_step > 0 {
+                        this.prev_step(cx);
+                    }
+                }
+                // Esc or Ctrl-G: interrupt optimization
+                else if event.keystroke.key == "escape" 
+                    || (event.keystroke.key == "g" && event.keystroke.modifiers.control) {
+                    // Cancel optimization in EQ Design component
+                    this.eq_design.update(cx, |eq, cx| {
+                        if matches!(eq.optimization_status(), crate::components::eq_design::OptimizationStatus::Running) {
+                            log::info!("[Workflow] Cancelling optimization via keyboard shortcut");
+                            eq.cancel_optimization(cx);
+                        }
+                    });
+                }
+            }))
+            .child(self.render_step_navigator(&steps, window_width, cx))
             .child(
                 // Scrollable content area (flex_1 makes it take remaining space)
                 div()
                     .flex_1()
-                    .p_6()
-                    .child(self.render_step_content(&steps, cx)),
-            )
-            .child(
-                // Fixed navigation buttons at bottom
-                div()
                     .p_4()
-                    .border_t_1()
-                    .border_color(rgb(0xdddddd))
-                    .bg(rgb(0xffffff))
-                    .child(self.render_navigation_buttons(total, cx)),
+                    .child(self.render_step_content(&steps, cx)),
             )
     }
 }
@@ -615,39 +640,106 @@ impl HeadphoneWorkflow {
             })
     }
 
-    fn render_step_navigator(&self, steps: &[&str]) -> Div {
+    fn render_step_navigator(&self, steps: &[&str], window_width: f32, cx: &mut Context<Self>) -> Div {
+        // Hide step numbers if window is too narrow
+        let show_numbers = window_width > 600.0;
+
         div()
             .flex()
             .flex_row()
-            .gap_2()
             .items_center()
+            .justify_between()
+            .w_full()
             .p_4()
             .bg(rgb(0xffffff))
             .rounded(px(8.0))
             .border_1()
             .border_color(rgb(0xdddddd))
-            .children((0..steps.len()).map(|i| {
-                let is_active = i == self.current_step;
-                let is_done = i < self.current_step;
-
+            // Previous arrow at far left
+            .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .w(px(32.0))
-                    .h(px(32.0))
-                    .rounded(px(16.0))
-                    .bg(if is_active {
+                    .px_4()
+                    .py_2()
+                    .rounded(px(6.0))
+                    .bg(if self.current_step > 0 {
                         rgb(0x4a90e2)
-                    } else if is_done {
-                        rgb(0x50c878)
                     } else {
                         rgb(0xcccccc)
                     })
                     .text_color(rgb(0xffffff))
-                    .font_weight(FontWeight::BOLD)
-                    .child((i + 1).to_string())
-            }))
+                    .cursor(if self.current_step > 0 {
+                        CursorStyle::PointingHand
+                    } else {
+                        CursorStyle::Arrow
+                    })
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            if this.current_step > 0 {
+                                this.prev_step(cx);
+                            }
+                        }),
+                    )
+                    .child("←"),
+            )
+            // Step numbers centered in middle (if enough space)
+            .when(show_numbers, |parent_div| {
+                parent_div.child(
+                    div()
+                        .flex()
+                        .flex_row()
+                        .gap_2()
+                        .items_center()
+                        .children((0..steps.len()).map(|i| {
+                            let is_active = i == self.current_step;
+                            let is_done = i < self.current_step;
+
+                            div()
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .w(px(32.0))
+                                .h(px(32.0))
+                                .rounded(px(16.0))
+                                .bg(if is_active {
+                                    rgb(0x4a90e2)
+                                } else if is_done {
+                                    rgb(0x50c878)
+                                } else {
+                                    rgb(0xcccccc)
+                                })
+                                .text_color(rgb(0xffffff))
+                                .font_weight(FontWeight::BOLD)
+                                .cursor_pointer()
+                                .child((i + 1).to_string())
+                        })),
+                )
+            })
+            // Next arrow at far right
+            .child(
+                div()
+                    .px_4()
+                    .py_2()
+                    .rounded(px(6.0))
+                    .bg(if self.current_step < steps.len() - 1 {
+                        rgb(0x4a90e2)
+                    } else {
+                        rgb(0x50c878)
+                    })
+                    .text_color(rgb(0xffffff))
+                    .cursor_pointer()
+                    .on_mouse_down(
+                        MouseButton::Left,
+                        cx.listener(|this, _, _, cx| {
+                            this.next_step(cx);
+                        }),
+                    )
+                    .child(if self.current_step < steps.len() - 1 {
+                        "→"
+                    } else {
+                        "✓"
+                    }),
+            )
     }
 
     fn render_step_content(&mut self, steps: &[&str], cx: &mut Context<Self>) -> Div {
@@ -682,64 +774,6 @@ impl HeadphoneWorkflow {
             })
     }
 
-    fn render_navigation_buttons(&mut self, total: usize, cx: &mut Context<Self>) -> Div {
-        div()
-            .flex()
-            .flex_row()
-            .gap_3()
-            .justify_between()
-            .w_full()
-            .child(
-                div()
-                    .px_6()
-                    .py_3()
-                    .rounded(px(6.0))
-                    .bg(if self.current_step > 0 {
-                        rgb(0x4a90e2)
-                    } else {
-                        rgb(0xcccccc)
-                    })
-                    .text_color(rgb(0xffffff))
-                    .cursor(if self.current_step > 0 {
-                        CursorStyle::PointingHand
-                    } else {
-                        CursorStyle::Arrow
-                    })
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, cx| {
-                            if this.current_step > 0 {
-                                this.prev_step(cx);
-                            }
-                        }),
-                    )
-                    .child("← Previous"),
-            )
-            .child(
-                div()
-                    .px_6()
-                    .py_3()
-                    .rounded(px(6.0))
-                    .bg(if self.current_step < total - 1 {
-                        rgb(0x4a90e2)
-                    } else {
-                        rgb(0x50c878)
-                    })
-                    .text_color(rgb(0xffffff))
-                    .cursor_pointer()
-                    .on_mouse_down(
-                        MouseButton::Left,
-                        cx.listener(|this, _, _, cx| {
-                            this.next_step(cx);
-                        }),
-                    )
-                    .child(if self.current_step < total - 1 {
-                        "Next →"
-                    } else {
-                        "Finish ✓"
-                    }),
-            )
-    }
 
     fn render_step_1(&mut self, cx: &mut Context<Self>) -> Div {
         let has_curve = self.input_curve.is_some();
@@ -859,14 +893,7 @@ impl HeadphoneWorkflow {
         div()
             .flex()
             .flex_col()
-            .gap_4()
             .w_full()
-            .child(
-                div()
-                    .text_color(rgb(0x666666))
-                    .mb_4()
-                    .child("Configure EQ parameters and run optimization"),
-            )
             .child(
                 // Embed the EQDesignComponent
                 div()

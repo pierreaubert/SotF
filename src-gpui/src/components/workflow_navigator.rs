@@ -13,7 +13,6 @@ impl WorkflowNavigator {
 
 impl Render for WorkflowNavigator {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        // Simple desktop layout for now
         div()
             .flex()
             .flex_col()

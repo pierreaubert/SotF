@@ -5,6 +5,10 @@ MACOSX_DEPLOYMENT_TARGET = "15.0"
 [build]
 rustflags = ["-Ctarget-cpu=native"]
 
+# ----------------------------------------------------------------------
+# MacOS
+# ----------------------------------------------------------------------
+
 # macOS Apple Silicon (M1-M5) - using Accelerate framework
 [target.aarch64-apple-darwin]
 rustflags = [
@@ -20,6 +24,10 @@ rustflags = [
     "-C", "link-arg=-framework", "-C", "link-arg=Accelerate"
 ]
 
+# ----------------------------------------------------------------------
+# Linux
+# ----------------------------------------------------------------------
+
 # Linux x86_64 configuration
 [target.x86_64-unknown-linux-gnu]
 rustflags = [
@@ -34,6 +42,10 @@ rustflags = [
   "-C", "link-arg=-lopenblas64"
 ]
 
+# ----------------------------------------------------------------------
+# Windows
+# ----------------------------------------------------------------------
+
 # Windows MSVC x86_64 configuration
 [target.x86_64-pc-windows-msvc]
 rustflags = [
@@ -42,7 +54,8 @@ rustflags = [
     # Uncomment and adjust paths if using vcpkg OpenBLAS:
     "-C", "link-arg=/LIBPATH:C:\\vcpkg\\installed\\x64-windows\\lib",
     "-C", "link-arg=/LIBPATH:C:\\Users\\pierr\\source\\repos\\microsoft\\vcpkg\\installed\\x64-windows\\lib",
-    "-C", "link-arg=openblas.lib"
+    "-C", "link-arg=openblas.lib",
+    "-C", "link-arg=nlopt.lib"
 ]
 
 # Windows MSVC ARM configuration

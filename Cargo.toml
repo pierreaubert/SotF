@@ -30,6 +30,7 @@ gpui = "0.2"
 gpui-component = "0.2"
 log = "0.4"
 ndarray = { version = "0.16.0", features = ["blas", "serde"] }
+nlopt = "0.8.1"
 open = "5.0"
 plotly = { version = "0.13" }
 thiserror = "2.0"
@@ -40,6 +41,8 @@ rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
+signal-hook = "0.3"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 tempfile = "3.8"
 urlencoding = "2.1"
 which = "6.0"

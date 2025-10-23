@@ -22,9 +22,9 @@ fn main() {
         cblas::daxpy(
 	    n,            // The number of elements
 	    a,            // The scalar 'a'
-	    x.as_ptr(),   // Pointer to the start of X
+	    &x,           // Slice reference to X
             incx,         // Stride of X
-	    y.as_mut_ptr(), // Mutable pointer to the start of Y
+	    &mut y,       // Mutable slice reference to Y
             incy,         // Stride of Y
 	);
     }

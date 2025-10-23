@@ -8,13 +8,13 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, State};
 
 // Import from autoeq_backend
-use autoeq_backend::optim::{run_optimization_internal, ProgressCallback, ProgressUpdate};
+use autoeq_backend::camilla::ChannelMapMode;
+use autoeq_backend::optim::{ProgressCallback, ProgressUpdate, run_optimization_internal};
 use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
 use autoeq_backend::{
-    AudioManager, CancellationState, OptimizationParams, OptimizationResult, SharedAudioState, audio,
-    curve_data_to_curve,
+    AudioManager, CancellationState, OptimizationParams, OptimizationResult, SharedAudioState,
+    audio, curve_data_to_curve,
 };
-use autoeq_backend::camilla::ChannelMapMode;
 use tokio::sync::Mutex;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -107,10 +107,10 @@ impl ProgressCallback for TauriProgressCallback {
     fn on_progress(&self, update: ProgressUpdate) -> bool {
         // Emit progress update to frontend
         match self.app_handle.emit("progress_update", &update) {
-            Ok(_) => true,  // Continue optimization
+            Ok(_) => true, // Continue optimization
             Err(e) => {
                 eprintln!("Failed to emit progress update: {}", e);
-                true  // Still continue even if emit fails
+                true // Still continue even if emit fails
             }
         }
     }
@@ -143,7 +143,7 @@ async fn run_optimization(
         Arc::new((*cancellation_state).clone()),
     )
     .await;
-    
+
     match result {
         Ok(res) => {
             println!("[RUST DEBUG] Optimization completed successfully");
@@ -221,7 +221,7 @@ async fn generate_plot_filters(params: PlotFiltersParams) -> Result<serde_json::
         no_parallel: false,
         parallel_threads: 0,
         seed: None, // Random seed for deterministic optimization (None = random)
-        qa: None, // Quality assurance mode disabled for UI (None = disabled)
+        qa: None,   // Quality assurance mode disabled for UI (None = disabled)
     };
 
     // Generate the plot
@@ -322,8 +322,8 @@ fn cancel_optimization(cancellation_state: State<CancellationState>) -> Result<(
 // Audio Control Commands
 // ============================================================================
 
+use autoeq_backend::audio::{AudioConfig, AudioDevice};
 use autoeq_backend::{AudioState, AudioStreamState, FilterParams};
-use autoeq_backend::audio::{AudioDevice, AudioConfig};
 use std::path::PathBuf;
 
 // ============================================================================
@@ -589,7 +589,8 @@ async fn audio_get_signal_peak(
 // ============================================================================
 
 #[tauri::command]
-async fn get_audio_devices() -> Result<std::collections::HashMap<String, Vec<AudioDevice>>, String> {
+async fn get_audio_devices() -> Result<std::collections::HashMap<String, Vec<AudioDevice>>, String>
+{
     autoeq_backend::audio::get_audio_devices()
 }
 
@@ -600,12 +601,7 @@ async fn set_audio_device(
     config: AudioConfig,
     audio_state: State<'_, SharedAudioState>,
 ) -> Result<String, String> {
-    autoeq_backend::audio::set_audio_device(
-        device_name,
-        is_input,
-        config,
-        &*audio_state,
-    )
+    autoeq_backend::audio::set_audio_device(device_name, is_input, config, &*audio_state)
 }
 
 #[tauri::command]
@@ -636,8 +632,7 @@ pub fn run() {
     let audio_manager = Mutex::new(AudioManager::new(camilla_binary));
 
     tauri::Builder::default()
-        .plugin(tauri_plugin_clipboard_manager::init())
-        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(CancellationState::new())
         .manage(SharedAudioState::default())

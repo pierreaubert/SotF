@@ -3,5 +3,10 @@
   "identifier": "main-capability",
   "description": "Main capability for AutoEQ UI",
   "windows": ["main"],
-  "permissions": ["dialog:allow-open", "dialog:default", "core:default"]
+    "permissions": [
+	"dialog:allow-open",
+	"dialog:default",
+	"fs:allow-app-read-recursive",
+	"fs:allow-app-write-recursive",
+	"core:default"]
 }

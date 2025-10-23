@@ -1,7 +1,7 @@
 [package]
-name = "autoeq-ui"
-version = "0.4.47"
-description = "AutoEQ: optimise your speaker or your headset"
+name = "sotf"
+version = "0.4.44"
+description = "Sound of the future will improve and customize the sound of your speakers or your headsets"
 authors = ["pierre@spinorama.org"]
 edition = "2024"
 
@@ -26,12 +26,11 @@ autoeq_backend = { path = "../../src-backend" }
 
 # tauri
 tauri = { workspace=true , features = [] }
-tauri-plugin-opener = { workspace=true }
 tauri-plugin-dialog = { workspace=true }
-tauri-plugin-clipboard-manager = { workspace=true }
+tauri-plugin-fs = "2"
 
 [build-dependencies]
-tauri-build = { version="2.4", features = [] }
+tauri-build = { version="2.5", features = [] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # BLAS: Use Accelerate framework on macOS

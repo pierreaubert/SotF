@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Sound of the Future",
+  "productName": "sotf",
   "version": "0.4.44",
   "identifier": "org.spinorama.sotf",
   "build": {
@@ -71,13 +71,14 @@
     },
     "linux": {
       "appimage": {
-        "bundleMediaFramework": true
+          "bundleMediaFramework": true
       },
       "deb": {
-        "depends": []
+          "depends": [
+	  ]
       },
       "rpm": {
-        "depends": []
+          "depends": []
       }
     }
   }

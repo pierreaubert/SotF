@@ -9,12 +9,16 @@ pub use camilla::{
 
 pub mod optim;
 pub mod plot;
+pub mod export;
+pub mod spinorama_api;
 
 // Re-export commonly used types and helpers for easier access in tests and consumers
 pub use optim::{
     CancellationState, OptimizationParams, OptimizationResult, ProgressUpdate, validate_params,
 };
 pub use plot::{CurveData, PlotData, curve_data_to_curve};
+pub use export::{ExportFormat, FilterParam as ExportFilterParam};
+pub use spinorama_api::{SpinAudioClient, SpeakerInfo, MeasurementInfo, Cea2034Data, FrequencyResponse};
 
 #[cfg(test)]
 mod tests;

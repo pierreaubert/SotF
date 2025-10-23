@@ -1,0 +1,11 @@
+[package]
+name = "rust_blas_demo"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# This crate builds and links a BLAS library (OpenBLAS by default)
+blas-src = { version = "0.10", features = ["openblas"] }
+
+# This crate provides the C-style function definitions (e.g., daxpy)
+cblas = "0.2"

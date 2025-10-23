@@ -44,6 +44,18 @@ enum Commands {
         #[arg(short, long = "filter", value_name = "FREQ:Q:GAIN")]
         filters: Vec<String>,
 
+        /// Hardware input channel map (comma-separated indices)
+        #[arg(long = "hwaudio-input", value_delimiter = ',')]
+        hwaudio_input: Option<Vec<u16>>,
+
+        /// Hardware output channel map (comma-separated indices)
+        #[arg(long = "hwaudio-output", value_delimiter = ',')]
+        hwaudio_output: Option<Vec<u16>>,
+
+        /// Swap left and right channels (useful to check channel mapping)
+        #[arg(long = "swap-channels", default_value_t = false)]
+        swap_channels: bool,
+
         /// Duration to play in seconds (0 = play until stopped)
         #[arg(short = 't', long, default_value = "0")]
         duration: u64,
@@ -66,6 +78,10 @@ enum Commands {
         /// Number of channels
         #[arg(short, long, default_value = "2")]
         channels: u16,
+
+        /// Hardware input channel map (comma-separated indices)
+        #[arg(long = "hwaudio-input", value_delimiter = ',')]
+        hwaudio_input: Option<Vec<u16>>,
 
         /// Duration to record in seconds
         #[arg(short = 't', long, default_value = "10")]
@@ -115,6 +131,9 @@ async fn main() {
             sample_rate,
             channels,
             filters,
+            hwaudio_input,
+            hwaudio_output,
+            swap_channels,
             duration,
         } => {
             // Parse filters
@@ -126,6 +145,12 @@ async fn main() {
                 }
             };
 
+            let map_mode = if swap_channels {
+                autoeq_backend::camilla::ChannelMapMode::Swap
+            } else {
+                autoeq_backend::camilla::ChannelMapMode::Normal
+            };
+
             if let Err(e) = play_audio(
                 binary_path,
                 file,
@@ -134,6 +159,9 @@ async fn main() {
                 channels,
                 filter_params,
                 duration,
+                map_mode,
+                hwaudio_input,
+                hwaudio_output,
             )
             .await
             {
@@ -146,10 +174,19 @@ async fn main() {
             device,
             sample_rate,
             channels,
+            hwaudio_input,
             duration,
         } => {
-            if let Err(e) =
-                record_audio(binary_path, output, device, sample_rate, channels, duration).await
+            if let Err(e) = record_audio(
+                binary_path,
+                output,
+                device,
+                sample_rate,
+                channels,
+                duration,
+                hwaudio_input,
+            )
+            .await
             {
                 eprintln!("Error: {}", e);
                 std::process::exit(1);
@@ -216,6 +253,9 @@ async fn play_audio(
     channels: u16,
     filters: Vec<FilterParams>,
     duration: u64,
+    map_mode: autoeq_backend::camilla::ChannelMapMode,
+    hwaudio_input: Option<Vec<u16>>,
+    hwaudio_output: Option<Vec<u16>>,
 ) -> Result<(), String> {
     println!("Starting playback...");
     println!("  File: {:?}", file);
@@ -250,11 +290,21 @@ async fn play_audio(
     })
     .map_err(|e| format!("Failed to set Ctrl+C handler: {}", e))?;
 
-    // Start playback
-    manager
-        .start_playback(file, device, sample_rate, channels, filters)
-        .await
-        .map_err(|e| format!("Failed to start playback: {}", e))?;
+    // Start playback with cancellation support
+    let r_check = running.clone();
+    tokio::select! {
+        result = manager.start_playback(file, device, sample_rate, channels, filters, map_mode, hwaudio_output) => {
+            result.map_err(|e| format!("Failed to start playback: {}", e))?;
+        }
+        _ = async {
+            while r_check.load(Ordering::SeqCst) {
+                sleep(Duration::from_millis(100)).await;
+            }
+        } => {
+            println!("Playback start cancelled");
+            return Ok(());
+        }
+    }
 
     println!("Playback started successfully!");
     println!("Press Ctrl+C to stop\n");
@@ -294,12 +344,14 @@ async fn play_audio(
         sleep(Duration::from_millis(100)).await;
     }
 
-    // Stop playback
+    // Stop playback with timeout
     println!("\nStopping playback...");
-    manager
-        .stop_playback()
-        .await
-        .map_err(|e| format!("Failed to stop playback: {}", e))?;
+    match tokio::time::timeout(Duration::from_secs(3), manager.stop_playback()).await {
+        Ok(result) => result.map_err(|e| format!("Failed to stop playback: {}", e))?,
+        Err(_) => {
+            println!("Stop playback timed out, forcing exit");
+        }
+    }
 
     println!("Playback stopped successfully");
     Ok(())
@@ -312,6 +364,7 @@ async fn record_audio(
     sample_rate: u32,
     channels: u16,
     duration: u64,
+    hwaudio_input: Option<Vec<u16>>,
 ) -> Result<(), String> {
     println!("Starting recording...");
     println!("  Output: {:?}", output);
@@ -335,7 +388,7 @@ async fn record_audio(
 
     // Start recording
     manager
-        .start_recording(output.clone(), device, sample_rate, channels)
+        .start_recording(output.clone(), device, sample_rate, channels, hwaudio_input)
         .await
         .map_err(|e| format!("Failed to start recording: {}", e))?;
 

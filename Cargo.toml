@@ -1,36 +1,47 @@
 [workspace]
 members = [
+  "tests",
   "src-backend",
   "src-audio-capture/src-tauri",
-  "src-ui/src-tauri"
+  "src-ui/src-tauri",
+  "src-gpui"
 ]
 resolver = "3"
 
 [workspace.package]
-version = "0.3.76"
-description = "AutoEQ: optimise your speaker or your headset"
+version = "0.4.45"
+description = "SotF: optimise your speakers and headsets"
 authors = ["pierre@spinorama.org"]
 edition = "2024"
+documentation = "https://docs.rs/sotf"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/pierreaubert/sotf"
 
 [workspace.dependencies]
-# math
-ndarray = { version = "0.16.0", features = ["blas", "serde"] }
-
-# misc
+anyhow = "1.0"
 clap = { version = "4.4", features = ["derive"] }
+chrono = "0.4"
 cpal = "0.16.0"
 ctrlc = "3.4"
 csv = "1.3"
+env_logger = "0.11"
 futures-util = "0.3"
+gpui = "0.2"
+gpui-component = "0.2"
+log = "0.4"
+ndarray = { version = "0.16.0", features = ["blas", "serde"] }
+open = "5.0"
 plotly = { version = "0.13" }
+thiserror = "2.0"
 tokio = { version = "1", features = ["full"] }
 tokio-tungstenite = "0.21"
 reqwest = { version = "0.12", features = ["json"] }
+rfd = "0.15"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+serde_yaml = "0.9"
 tempfile = "3.8"
 urlencoding = "2.1"
-serde_yaml = "0.9"
 which = "6.0"
 
 # autoeq

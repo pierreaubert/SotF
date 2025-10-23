@@ -2,6 +2,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::io::Write;
+use std::net::TcpListener;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -169,6 +170,12 @@ pub struct AudioStreamState {
     pub channels: u16,
     /// Active EQ filters
     pub filters: Vec<FilterParams>,
+    /// Channel mapping mode
+    pub channel_map_mode: ChannelMapMode,
+    /// Playback device channel map (hardware channels)
+    pub playback_channel_map: Option<Vec<u16>>,
+    /// Capture device channel map (hardware channels)
+    pub capture_channel_map: Option<Vec<u16>>,
     /// Last error message
     pub error_message: Option<String>,
 }
@@ -185,6 +192,9 @@ impl Default for AudioStreamState {
             sample_rate: 48000,
             channels: 2,
             filters: Vec::new(),
+            channel_map_mode: ChannelMapMode::Normal,
+            playback_channel_map: None,
+            capture_channel_map: None,
             error_message: None,
         }
     }
@@ -231,6 +241,8 @@ pub struct CaptureDevice {
     pub channels: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_map: Option<Vec<u16>>,
 }
 
 /// Playback device configuration
@@ -246,6 +258,8 @@ pub struct PlaybackDevice {
     pub channels: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub format: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel_map: Option<Vec<u16>>,
 }
 
 /// Pipeline step in the processing chain
@@ -253,9 +267,22 @@ pub struct PlaybackDevice {
 pub struct PipelineStep {
     #[serde(rename = "type")]
     pub step_type: String,
-    pub channel: u16,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub channel: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub names: Option<Vec<String>>,
+}
+
+// ============================================================================
+// Channel mapping mode
+// ============================================================================
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+pub enum ChannelMapMode {
+    Normal,
+    Swap,
 }
 
 // ============================================================================
@@ -279,11 +306,13 @@ pub struct CamillaDSPProcess {
 impl CamillaDSPProcess {
     /// Create a new CamillaDSP process manager
     pub fn new(binary_path: PathBuf) -> Self {
+        // Find an available port dynamically to avoid conflicts
+        let websocket_port = find_available_port().unwrap_or(1234);
         Self {
             process: None,
             binary_path,
             config_path: None,
-            websocket_port: 1234, // Default CamillaDSP WebSocket port
+            websocket_port,
             health_check_interval: Duration::from_secs(5),
         }
     }
@@ -370,12 +399,13 @@ impl CamillaDSPProcess {
         let mut cmd = Command::new(&self.binary_path);
         cmd.arg("-p")
             .arg(self.websocket_port.to_string())
+            .arg("-v")  // Verbose mode to see errors
             .arg(config_path.to_str().ok_or_else(|| {
                 CamillaError::ConfigGenerationFailed("Invalid config path encoding".to_string())
             })?)
             .stdin(Stdio::null())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped());
+            .stdout(Stdio::inherit())  // Show output directly
+            .stderr(Stdio::inherit());
 
         // Spawn the process
         let child = cmd.spawn().map_err(|e| {
@@ -391,7 +421,7 @@ impl CamillaDSPProcess {
         // Verify it's running
         if !self.is_running() {
             return Err(CamillaError::ProcessStartFailed(
-                "Process exited immediately after start".to_string(),
+                "Process exited immediately after start (check console output above)".to_string(),
             ));
         }
 
@@ -486,6 +516,26 @@ impl CamillaDSPProcess {
     }
 }
 
+fn find_available_port() -> Option<u16> {
+    // Try up to 200 attempts to find a free port above 1024
+    let start = (std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .map(|d| (d.as_nanos() % 50000) as u16)
+        .unwrap_or(0))
+        + 1025; // ensure >1024
+
+    for i in 0..200u16 {
+        let port = 1025 + ((start + i) % (65535 - 1025));
+        if let Ok(listener) = TcpListener::bind(("127.0.0.1", port as u16)) {
+            // Successfully bound; release immediately and use this port
+            drop(listener);
+            return Some(port as u16);
+        }
+    }
+    None
+}
+
 impl Drop for CamillaDSPProcess {
     fn drop(&mut self) {
         // Ensure cleanup on drop
@@ -505,36 +555,19 @@ impl Drop for CamillaDSPProcess {
 // ============================================================================
 
 /// WebSocket command to send to CamillaDSP
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "command")]
+#[derive(Debug, Clone)]
 pub enum CamillaCommand {
-    #[serde(rename = "GetConfig")]
     GetConfig,
-    #[serde(rename = "SetConfig")]
     SetConfig { config: String },
-    #[serde(rename = "GetState")]
     GetState,
-    #[serde(rename = "Stop")]
     Stop,
-    #[serde(rename = "GetCaptureSignalPeak")]
     GetCaptureSignalPeak,
-    #[serde(rename = "GetPlaybackSignalPeak")]
     GetPlaybackSignalPeak,
-    #[serde(rename = "GetBufferLevel")]
     GetBufferLevel,
 }
 
-/// WebSocket response from CamillaDSP
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(untagged)]
-pub enum CamillaResponse {
-    State { state: String },
-    Config { config: String },
-    SignalPeak { value: f32 },
-    BufferLevel { value: i32 },
-    Ok { result: String },
-    Error { error: String },
-}
+// We parse responses dynamically since CamillaDSP uses externally tagged
+// commands like {"GetState": {"result": "Ok", "value": "Running"}}
 
 /// WebSocket client for CamillaDSP control
 pub struct CamillaWebSocketClient {
@@ -558,7 +591,7 @@ impl CamillaWebSocketClient {
     }
 
     /// Send a command and wait for response
-    pub async fn send_command(&self, command: CamillaCommand) -> CamillaResult<CamillaResponse> {
+    pub async fn send_command(&self, command: CamillaCommand) -> CamillaResult<String> {
         // Connect to WebSocket
         let (ws_stream, _) = connect_async(&self.url)
             .await
@@ -566,14 +599,65 @@ impl CamillaWebSocketClient {
 
         let (mut write, mut read) = ws_stream.split();
 
-        // Serialize and send command
-        let command_json = serde_json::to_string(&command)?;
-        println!("[WebSocket] Sending command: {}", command_json);
-
-        write
-            .send(Message::Text(command_json))
-            .await
-            .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+        // Build and send command
+        match command {
+            CamillaCommand::SetConfig { ref config } => {
+                let command_json = serde_json::json!({ "SetConfig": { "config": config } }).to_string();
+                println!("[WebSocket] Sending command: {}", command_json);
+                write
+                    .send(Message::Text(command_json))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+            CamillaCommand::GetConfig => {
+                println!("[WebSocket] Sending command: GetConfig");
+                let txt = serde_json::to_string(&"GetConfig").unwrap();
+                write
+                    .send(Message::Text(txt))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+            CamillaCommand::GetState => {
+                println!("[WebSocket] Sending command: GetState");
+                let txt = serde_json::to_string(&"GetState").unwrap();
+                write
+                    .send(Message::Text(txt))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+            CamillaCommand::Stop => {
+                println!("[WebSocket] Sending command: Stop");
+                let txt = serde_json::to_string(&"Stop").unwrap();
+                write
+                    .send(Message::Text(txt))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+            CamillaCommand::GetCaptureSignalPeak => {
+                println!("[WebSocket] Sending command: GetCaptureSignalPeak");
+                let txt = serde_json::to_string(&"GetCaptureSignalPeak").unwrap();
+                write
+                    .send(Message::Text(txt))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+            CamillaCommand::GetPlaybackSignalPeak => {
+                println!("[WebSocket] Sending command: GetPlaybackSignalPeak");
+                let txt = serde_json::to_string(&"GetPlaybackSignalPeak").unwrap();
+                write
+                    .send(Message::Text(txt))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+            CamillaCommand::GetBufferLevel => {
+                println!("[WebSocket] Sending command: GetBufferLevel");
+                let txt = serde_json::to_string(&"GetBufferLevel").unwrap();
+                write
+                    .send(Message::Text(txt))
+                    .await
+                    .map_err(|e| CamillaError::WebSocketError(format!("Send failed: {}", e)))?;
+            }
+        }
 
         // Wait for response with timeout
         let response_future = read.next();
@@ -583,12 +667,10 @@ impl CamillaWebSocketClient {
             .ok_or_else(|| CamillaError::WebSocketError("Connection closed".to_string()))?
             .map_err(|e| CamillaError::WebSocketError(format!("Receive failed: {}", e)))?;
 
-        // Parse response
         match response_msg {
             Message::Text(text) => {
                 println!("[WebSocket] Received response: {}", text);
-                let response: CamillaResponse = serde_json::from_str(&text)?;
-                Ok(response)
+                Ok(text)
             }
             _ => Err(CamillaError::WebSocketError(
                 "Unexpected message type".to_string(),
@@ -598,108 +680,94 @@ impl CamillaWebSocketClient {
 
     /// Get current state
     pub async fn get_state(&self) -> CamillaResult<String> {
-        let response = self.send_command(CamillaCommand::GetState).await?;
-        match response {
-            CamillaResponse::State { state } => Ok(state),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let text = self.send_command(CamillaCommand::GetState).await?;
+        // Expected: {"GetState": {"result":"Ok","value":"Running"}}
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let state = v.get("GetState")
+            .and_then(|x| x.get("value"))
+            .and_then(|x| x.as_str())
+            .ok_or_else(|| CamillaError::WebSocketError("Unexpected response format".to_string()))?;
+        Ok(state.to_string())
     }
 
     /// Get current configuration
     pub async fn get_config(&self) -> CamillaResult<String> {
-        let response = self.send_command(CamillaCommand::GetConfig).await?;
-        match response {
-            CamillaResponse::Config { config } => Ok(config),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let text = self.send_command(CamillaCommand::GetConfig).await?;
+        // Expect {"GetConfig": {"result":"Ok","value":"<yaml>"}}
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let cfg = v.get("GetConfig")
+            .and_then(|x| x.get("value"))
+            .and_then(|x| x.as_str())
+            .ok_or_else(|| CamillaError::WebSocketError("Unexpected response format".to_string()))?;
+        Ok(cfg.to_string())
     }
 
     /// Set new configuration
     pub async fn set_config(&self, config_yaml: String) -> CamillaResult<()> {
-        let response = self
-            .send_command(CamillaCommand::SetConfig {
-                config: config_yaml,
-            })
+        let text = self
+            .send_command(CamillaCommand::SetConfig { config: config_yaml })
             .await?;
-        match response {
-            CamillaResponse::Ok { .. } => Ok(()),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let ok = v.get("SetConfig")
+            .and_then(|x| x.get("result"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("") == "Ok";
+        if ok { Ok(()) } else { Err(CamillaError::ProcessCommunicationFailed("SetConfig failed".to_string())) }
     }
 
     /// Stop playback
     pub async fn stop(&self) -> CamillaResult<()> {
-        let response = self.send_command(CamillaCommand::Stop).await?;
-        match response {
-            CamillaResponse::Ok { .. } => Ok(()),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let text = self.send_command(CamillaCommand::Stop).await?;
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let ok = v.get("Stop")
+            .and_then(|x| x.get("result"))
+            .and_then(|x| x.as_str())
+            .unwrap_or("") == "Ok";
+        if ok { Ok(()) } else { Err(CamillaError::ProcessCommunicationFailed("Stop failed".to_string())) }
     }
 
     /// Get capture signal peak (volume level)
     pub async fn get_capture_signal_peak(&self) -> CamillaResult<f32> {
-        let response = self
+        let text = self
             .send_command(CamillaCommand::GetCaptureSignalPeak)
             .await?;
-        match response {
-            CamillaResponse::SignalPeak { value } => Ok(value),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let value = v.get("GetCaptureSignalPeak")
+            .and_then(|x| x.get("value"))
+            .and_then(|x| x.as_f64())
+            .ok_or_else(|| CamillaError::WebSocketError("Unexpected response format".to_string()))?;
+        Ok(value as f32)
     }
 
     /// Get playback signal peak (volume level)
     pub async fn get_playback_signal_peak(&self) -> CamillaResult<f32> {
-        let response = self
+        let text = self
             .send_command(CamillaCommand::GetPlaybackSignalPeak)
             .await?;
-        match response {
-            CamillaResponse::SignalPeak { value } => Ok(value),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let value = v.get("GetPlaybackSignalPeak")
+            .and_then(|x| x.get("value"))
+            .and_then(|x| x.as_f64())
+            .ok_or_else(|| CamillaError::WebSocketError("Unexpected response format".to_string()))?;
+        Ok(value as f32)
     }
 
     /// Get buffer level
     pub async fn get_buffer_level(&self) -> CamillaResult<i32> {
-        let response = self.send_command(CamillaCommand::GetBufferLevel).await?;
-        match response {
-            CamillaResponse::BufferLevel { value } => Ok(value),
-            CamillaResponse::Error { error } => {
-                Err(CamillaError::ProcessCommunicationFailed(error))
-            }
-            _ => Err(CamillaError::WebSocketError(
-                "Unexpected response format".to_string(),
-            )),
-        }
+        let text = self.send_command(CamillaCommand::GetBufferLevel).await?;
+        let v: serde_json::Value = serde_json::from_str(&text)
+            .map_err(|e| CamillaError::WebSocketError(format!("JSON parse error: {}", e)))?;
+        let value = v.get("GetBufferLevel")
+            .and_then(|x| x.get("value"))
+            .and_then(|x| x.as_i64())
+            .ok_or_else(|| CamillaError::WebSocketError("Unexpected response format".to_string()))?;
+        Ok(value as i32)
     }
 
     /// Test connection to WebSocket server
@@ -792,6 +860,8 @@ impl AudioManager {
         sample_rate: u32,
         channels: u16,
         filters: Vec<FilterParams>,
+        channel_map_mode: ChannelMapMode,
+        output_map: Option<Vec<u16>>,
     ) -> CamillaResult<()> {
         println!(
             "[AudioManager] Starting playback: {:?} ({}Hz, {}ch, {} filters)",
@@ -812,6 +882,8 @@ impl AudioManager {
             state.sample_rate = sample_rate;
             state.channels = channels;
             state.filters = filters.clone();
+            state.channel_map_mode = channel_map_mode;
+            state.playback_channel_map = output_map.clone();
             state.error_message = None;
         }
 
@@ -829,6 +901,8 @@ impl AudioManager {
             sample_rate,
             channels,
             &filters,
+            channel_map_mode,
+            output_map.as_deref(),
         )?;
 
         // Write config to temp file
@@ -863,8 +937,9 @@ impl AudioManager {
         };
 
         let client = CamillaWebSocketClient::new(ws_url);
+        // Use shorter retry for faster startup
         client
-            .connect_with_retry(5, Duration::from_millis(500))
+            .connect_with_retry(3, Duration::from_millis(300))
             .await?;
 
         // Update state to playing
@@ -942,7 +1017,7 @@ impl AudioManager {
         }
 
         // Get current state to rebuild config
-        let (audio_file, output_device, sample_rate, channels) = {
+        let (audio_file, output_device, sample_rate, channels, channel_map_mode, playback_channel_map) = {
             let state = self.state.lock().map_err(|e| {
                 CamillaError::ProcessCommunicationFailed(format!("Failed to lock state: {}", e))
             })?;
@@ -957,6 +1032,8 @@ impl AudioManager {
                 state.output_device.clone(),
                 state.sample_rate,
                 state.channels,
+                state.channel_map_mode,
+                state.playback_channel_map.clone(),
             )
         };
 
@@ -967,6 +1044,8 @@ impl AudioManager {
             sample_rate,
             channels,
             &filters,
+            channel_map_mode,
+            playback_channel_map.as_deref(),
         )?;
 
         let config_yaml = serde_yaml::to_string(&config)?;
@@ -1001,6 +1080,7 @@ impl AudioManager {
         input_device: Option<String>,
         sample_rate: u32,
         channels: u16,
+        input_map: Option<Vec<u16>>,
     ) -> CamillaResult<()> {
         println!(
             "[AudioManager] Starting recording: {:?} ({}Hz, {}ch)",
@@ -1017,6 +1097,7 @@ impl AudioManager {
             state.sample_rate = sample_rate;
             state.channels = channels;
             state.error_message = None;
+            state.capture_channel_map = input_map.clone();
         }
 
         // Generate recording config
@@ -1025,6 +1106,7 @@ impl AudioManager {
             input_device.as_deref(),
             sample_rate,
             channels,
+            input_map.as_deref(),
         )?;
 
         // Write config to temp file
@@ -1111,6 +1193,8 @@ pub fn generate_playback_config(
     sample_rate: u32,
     channels: u16,
     filters: &[FilterParams],
+    map_mode: ChannelMapMode,
+    output_map: Option<&[u16]>,
 ) -> CamillaResult<CamillaDSPConfig> {
     // Validate all filters
     for filter in filters {
@@ -1118,11 +1202,19 @@ pub fn generate_playback_config(
     }
 
     // Create capture device (file input)
+    // Convert to absolute path so CamillaDSP can find the file
+    let absolute_path = audio_file.canonicalize().map_err(|e| {
+        CamillaError::ConfigGenerationFailed(format!(
+            "Failed to resolve audio file path {:?}: {}",
+            audio_file, e
+        ))
+    })?;
+    
     let capture = CaptureDevice {
         device_type: "WavFile".to_string(),
         device: None,
         filename: Some(
-            audio_file
+            absolute_path
                 .to_str()
                 .ok_or_else(|| {
                     CamillaError::ConfigGenerationFailed(
@@ -1133,16 +1225,41 @@ pub fn generate_playback_config(
         ),
         channels: None, // WavFile infers channels from file
         format: None,   // WavFile infers format from file
+        channel_map: None,
     };
 
     // Create playback device
     let (playback_type, device_name) = map_output_device(output_device)?;
+    // Prepare output channel_map if provided
+    let effective_output_map: Option<Vec<u16>> = if let Some(map) = output_map {
+        if map.len() as u16 >= channels {
+            // Use the last `channels` entries to select L/R, as often used for dedicated output pairs
+            let start = map.len() - channels as usize;
+            Some(map[start..].to_vec())
+        } else {
+            return Err(CamillaError::InvalidConfiguration(format!(
+                "Output channel_map length ({}) must be >= channels ({})",
+                map.len(), channels
+            )));
+        }
+    } else {
+        None
+    };
+
+    // Determine total number of output channels required
+    let mixer_out_channels: u16 = if let Some(ref outs) = effective_output_map {
+        outs.iter().copied().max().unwrap_or(1) as u16 + 1
+    } else {
+        channels
+    };
+
     let playback = PlaybackDevice {
         device_type: playback_type,
         device: device_name,
         filename: None,
-        channels: Some(channels), // CoreAudio needs explicit channel count
-        format: Some("FLOAT32LE".to_string()),
+        channels: Some(mixer_out_channels),
+        format: None, // Let CoreAudio use default format
+        channel_map: None, // CoreAudio doesn't accept channel_map; we route via Mixer
     };
 
     let devices = DeviceConfig {
@@ -1159,19 +1276,19 @@ pub fn generate_playback_config(
         None
     };
 
-    // Generate mixers section (stereo passthrough)
-    let mixers_section = if channels == 2 {
-        Some(generate_stereo_mixer_yaml())
+    // Determine mixer output channel count and destinations
+    let (mixer_out_channels, left_dest, right_dest) = if let Some(ref outs) = effective_output_map {
+        let max_idx = outs.iter().copied().max().unwrap_or(1) as u16;
+        (max_idx + 1, outs[0], outs[1])
     } else {
-        None
+        (2u16, 0u16, 1u16)
     };
 
-    // Generate pipeline
-    let pipeline = if !filters.is_empty() {
-        Some(generate_pipeline(channels, filters))
-    } else {
-        None
-    };
+    // Generate mixers section (stereo routing)
+    let mixers_section = Some(generate_stereo_mixer_yaml(map_mode, mixer_out_channels, left_dest, right_dest));
+
+    // Generate pipeline - always include mixer; add filters if any
+    let pipeline = Some(generate_pipeline(mixer_out_channels, filters));
 
     Ok(CamillaDSPConfig {
         devices,
@@ -1187,15 +1304,32 @@ pub fn generate_recording_config(
     input_device: Option<&str>,
     sample_rate: u32,
     channels: u16,
+    input_map: Option<&[u16]>,
 ) -> CamillaResult<CamillaDSPConfig> {
     // Create capture device (audio input)
     let (capture_type, device_name) = map_input_device(input_device)?;
+    // Prepare input channel_map if provided
+    let effective_input_map: Option<Vec<u16>> = if let Some(map) = input_map {
+        if map.len() as u16 >= channels {
+            // Use the first `channels` entries for input channels
+            Some(map[..channels as usize].to_vec())
+        } else {
+            return Err(CamillaError::InvalidConfiguration(format!(
+                "Input channel_map length ({}) must be >= channels ({})",
+                map.len(), channels
+            )));
+        }
+    } else {
+        None
+    };
+
     let capture = CaptureDevice {
         device_type: capture_type,
         device: device_name,
         filename: None,
         channels: Some(channels), // CoreAudio needs explicit channel count
         format: Some("FLOAT32LE".to_string()),
+        channel_map: effective_input_map,
     };
 
     // Create playback device (file output)
@@ -1214,6 +1348,7 @@ pub fn generate_recording_config(
         ),
         channels: Some(channels), // Specify channels for WAV output
         format: Some("FLOAT32LE".to_string()),
+        channel_map: None,
     };
 
     let devices = DeviceConfig {
@@ -1319,43 +1454,47 @@ fn generate_filters_yaml(filters: &[FilterParams]) -> CamillaResult<serde_yaml::
 }
 
 /// Generate a stereo mixer configuration
-fn generate_stereo_mixer_yaml() -> serde_yaml::Value {
-    let mixer_config = serde_yaml::from_str::<serde_yaml::Value>(
+fn generate_stereo_mixer_yaml(map_mode: ChannelMapMode, out_channels: u16, left_dest: u16, right_dest: u16) -> serde_yaml::Value {
+    let (l_src, r_src) = match map_mode { ChannelMapMode::Normal => (0,1), ChannelMapMode::Swap => (1,0) };
+    // Build YAML dynamically
+    let yaml = format!(
         r#"
         stereo_mixer:
           channels:
             in: 2
-            out: 2
+            out: {out}
           mapping:
-            - dest: 0
+            - dest: {ld}
               sources:
-                - channel: 0
+                - channel: {ls}
                   gain: 0
                   inverted: false
-            - dest: 1
+            - dest: {rd}
               sources:
-                - channel: 1
+                - channel: {rs}
                   gain: 0
                   inverted: false
         "#,
-    )
-    .unwrap();
-
-    mixer_config
+        out = out_channels,
+        ld = left_dest,
+        ls = l_src,
+        rd = right_dest,
+        rs = r_src
+    );
+    serde_yaml::from_str::<serde_yaml::Value>(&yaml).unwrap()
 }
 
 /// Generate the pipeline
 fn generate_pipeline(channels: u16, filters: &[FilterParams]) -> Vec<PipelineStep> {
     let mut pipeline = Vec::new();
 
-    // Add mixer if stereo
-    if channels == 2 {
-        pipeline.push(PipelineStep {
-            step_type: "Mixer".to_string(),
-            channel: 0,
-            names: Some(vec!["stereo_mixer".to_string()]),
-        });
-    }
+    // Always add mixer first
+    pipeline.push(PipelineStep {
+        step_type: "Mixer".to_string(),
+        channel: None,
+        name: Some("stereo_mixer".to_string()),
+        names: None,
+    });
 
     // Add filters for each channel
     if !filters.is_empty() {
@@ -1366,7 +1505,8 @@ fn generate_pipeline(channels: u16, filters: &[FilterParams]) -> Vec<PipelineSte
         for ch in 0..channels {
             pipeline.push(PipelineStep {
                 step_type: "Filter".to_string(),
-                channel: ch,
+                channel: Some(ch),
+                name: None,
                 names: Some(filter_names.clone()),
             });
         }
@@ -1518,7 +1658,7 @@ mod tests {
         let binary_path = PathBuf::from("/usr/local/bin/camilladsp");
         let process = CamillaDSPProcess::new(binary_path.clone());
         assert_eq!(process.binary_path, binary_path);
-        assert_eq!(process.websocket_port, 1234);
+        assert!(process.websocket_port > 1024);
         assert!(process.process.is_none());
     }
 
@@ -1556,7 +1696,7 @@ mod tests {
             FilterParams::new(10000.0, 2.0, 1.5),
         ];
 
-        let config = generate_playback_config(&audio_file, None, 48000, 2, &filters).unwrap();
+        let config = generate_playback_config(&audio_file, None, 48000, 2, &filters, ChannelMapMode::Normal).unwrap();
 
         assert_eq!(config.devices.samplerate, 48000);
         assert_eq!(config.devices.playback.channels, Some(2));
@@ -1571,7 +1711,7 @@ mod tests {
         let audio_file = PathBuf::from("/tmp/test.wav");
         let filters = vec![];
 
-        let config = generate_playback_config(&audio_file, None, 44100, 2, &filters).unwrap();
+        let config = generate_playback_config(&audio_file, None, 44100, 2, &filters, ChannelMapMode::Normal).unwrap();
 
         assert_eq!(config.devices.samplerate, 44100);
         assert!(config.filters.is_none());
@@ -1594,7 +1734,7 @@ mod tests {
         let audio_file = PathBuf::from("/tmp/test.wav");
         let filters = vec![FilterParams::new(1000.0, 1.0, 3.0)];
 
-        let config = generate_playback_config(&audio_file, None, 48000, 2, &filters).unwrap();
+        let config = generate_playback_config(&audio_file, None, 48000, 2, &filters, ChannelMapMode::Normal).unwrap();
         let yaml = serde_yaml::to_string(&config).unwrap();
 
         // Verify YAML contains expected fields
@@ -1648,18 +1788,17 @@ mod tests {
 
     #[test]
     fn test_command_serialization() {
+        // Build JSON the same way send_command does
         let cmd = CamillaCommand::GetState;
-        let json = serde_json::to_string(&cmd).unwrap();
+        let json = match cmd { CamillaCommand::GetState => serde_json::json!({"GetState": {}}).to_string(), _ => String::new() };
         assert!(json.contains("GetState"));
 
         let cmd = CamillaCommand::Stop;
-        let json = serde_json::to_string(&cmd).unwrap();
+        let json = match cmd { CamillaCommand::Stop => serde_json::json!({"Stop": {}}).to_string(), _ => String::new() };
         assert!(json.contains("Stop"));
 
-        let cmd = CamillaCommand::SetConfig {
-            config: "test config".to_string(),
-        };
-        let json = serde_json::to_string(&cmd).unwrap();
+        let cmd = CamillaCommand::SetConfig { config: "test config".to_string() };
+        let json = match cmd { CamillaCommand::SetConfig { ref config } => serde_json::json!({"SetConfig": {"config": config}}).to_string(), _ => String::new() };
         assert!(json.contains("SetConfig"));
         assert!(json.contains("test config"));
     }

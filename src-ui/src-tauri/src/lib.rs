@@ -5,15 +5,24 @@ use autoeq::{
 use ndarray::Array1;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, State};
 
 // Import from autoeq_backend
+use autoeq_backend::optim::run_optimization_internal;
+use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
 use autoeq_backend::{
+<<<<<<< HEAD
     CancellationState, OptimizationParams, OptimizationResult, SharedAudioState, audio,
     curve_data_to_curve,
 };
 use autoeq_backend::plot::{PlotFiltersParams, PlotSpinParams, plot_to_json};
 use autoeq_backend::optim::run_optimization_internal;
+=======
+    AudioManager, CancellationState, OptimizationParams, OptimizationResult, SharedAudioState,
+    audio, curve_data_to_curve,
+};
+use tokio::sync::Mutex;
+>>>>>>> cecce10 (fix: sweeps storing/recalling)
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -290,14 +299,287 @@ fn cancel_optimization(cancellation_state: State<CancellationState>) -> Result<(
     Ok(())
 }
 
+// ============================================================================
+// Audio Control Commands
+// ============================================================================
+
+use autoeq_backend::{AudioState, AudioStreamState, FilterParams};
+use std::path::PathBuf;
+
+// ============================================================================
+// Audio Event Payloads
+// ============================================================================
+
+/// Audio state change event payload
+#[derive(Clone, serde::Serialize)]
+struct AudioStateChanged {
+    state: String,
+    file: Option<String>,
+    output_device: Option<String>,
+    input_device: Option<String>,
+}
+
+/// Audio position update event payload
+#[derive(Clone, serde::Serialize)]
+struct AudioPositionUpdate {
+    position_seconds: f64,
+    duration_seconds: Option<f64>,
+}
+
+/// Audio error event payload
+#[derive(Clone, serde::Serialize)]
+struct AudioError {
+    error: String,
+}
+
+/// Audio signal peak event payload (for VU meter)
+#[derive(Clone, serde::Serialize)]
+struct AudioSignalPeak {
+    peak: f32,
+}
+
+/// Convert AudioState enum to string for events
+fn audio_state_to_string(state: AudioState) -> String {
+    match state {
+        AudioState::Idle => "idle".to_string(),
+        AudioState::Playing => "playing".to_string(),
+        AudioState::Paused => "paused".to_string(),
+        AudioState::Recording => "recording".to_string(),
+        AudioState::Error => "error".to_string(),
+    }
+}
+
+#[tauri::command]
+async fn audio_start_playback(
+    file_path: String,
+    output_device: Option<String>,
+    sample_rate: u32,
+    channels: u16,
+    filters: Vec<FilterParams>,
+    audio_manager: State<'_, Mutex<AudioManager>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    println!(
+        "[AUDIO] Starting playback: {} ({}Hz, {}ch, {} filters)",
+        file_path,
+        sample_rate,
+        channels,
+        filters.len()
+    );
+
+    let manager = audio_manager.lock().await;
+    let result = manager
+        .start_playback(
+            PathBuf::from(&file_path),
+            output_device.clone(),
+            sample_rate,
+            channels,
+            filters,
+        )
+        .await;
+
+    match result {
+        Ok(_) => {
+            // Emit state change event
+            let _ = app_handle.emit(
+                "audio:state-changed",
+                AudioStateChanged {
+                    state: "playing".to_string(),
+                    file: Some(file_path),
+                    output_device,
+                    input_device: None,
+                },
+            );
+            Ok(())
+        }
+        Err(e) => {
+            // Emit error event
+            let _ = app_handle.emit(
+                "audio:error",
+                AudioError {
+                    error: e.to_string(),
+                },
+            );
+            Err(format!("{}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn audio_stop_playback(
+    audio_manager: State<'_, Mutex<AudioManager>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    println!("[AUDIO] Stopping playback");
+
+    let manager = audio_manager.lock().await;
+    let result = manager.stop_playback().await;
+
+    match result {
+        Ok(_) => {
+            // Emit state change event
+            let _ = app_handle.emit(
+                "audio:state-changed",
+                AudioStateChanged {
+                    state: "idle".to_string(),
+                    file: None,
+                    output_device: None,
+                    input_device: None,
+                },
+            );
+            Ok(())
+        }
+        Err(e) => Err(format!("{}", e)),
+    }
+}
+
+#[tauri::command]
+async fn audio_update_filters(
+    filters: Vec<FilterParams>,
+    audio_manager: State<'_, Mutex<AudioManager>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    println!("[AUDIO] Updating {} filters", filters.len());
+
+    let manager = audio_manager.lock().await;
+    let result = manager.update_filters(filters).await;
+
+    match result {
+        Ok(_) => {
+            // Optionally emit event to confirm filters updated
+            println!("[AUDIO] Filters updated successfully");
+            Ok(())
+        }
+        Err(e) => {
+            // Emit error event
+            let _ = app_handle.emit(
+                "audio:error",
+                AudioError {
+                    error: e.to_string(),
+                },
+            );
+            Err(format!("{}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn audio_get_state(
+    audio_manager: State<'_, Mutex<AudioManager>>,
+) -> Result<AudioStreamState, String> {
+    let manager = audio_manager.lock().await;
+    manager.get_state().map_err(|e| format!("{}", e))
+}
+
+#[tauri::command]
+async fn audio_start_recording(
+    output_path: String,
+    input_device: Option<String>,
+    sample_rate: u32,
+    channels: u16,
+    audio_manager: State<'_, Mutex<AudioManager>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    println!(
+        "[AUDIO] Starting recording: {} ({}Hz, {}ch)",
+        output_path, sample_rate, channels
+    );
+
+    let manager = audio_manager.lock().await;
+    let result = manager
+        .start_recording(
+            PathBuf::from(&output_path),
+            input_device.clone(),
+            sample_rate,
+            channels,
+        )
+        .await;
+
+    match result {
+        Ok(_) => {
+            // Emit state change event
+            let _ = app_handle.emit(
+                "audio:state-changed",
+                AudioStateChanged {
+                    state: "recording".to_string(),
+                    file: Some(output_path),
+                    output_device: None,
+                    input_device,
+                },
+            );
+            Ok(())
+        }
+        Err(e) => {
+            // Emit error event
+            let _ = app_handle.emit(
+                "audio:error",
+                AudioError {
+                    error: e.to_string(),
+                },
+            );
+            Err(format!("{}", e))
+        }
+    }
+}
+
+#[tauri::command]
+async fn audio_stop_recording(
+    audio_manager: State<'_, Mutex<AudioManager>>,
+    app_handle: AppHandle,
+) -> Result<(), String> {
+    println!("[AUDIO] Stopping recording");
+
+    let manager = audio_manager.lock().await;
+    let result = manager.stop_recording().await;
+
+    match result {
+        Ok(_) => {
+            // Emit state change event
+            let _ = app_handle.emit(
+                "audio:state-changed",
+                AudioStateChanged {
+                    state: "idle".to_string(),
+                    file: None,
+                    output_device: None,
+                    input_device: None,
+                },
+            );
+            Ok(())
+        }
+        Err(e) => Err(format!("{}", e)),
+    }
+}
+
+#[tauri::command]
+async fn audio_get_signal_peak(
+    audio_manager: State<'_, Mutex<AudioManager>>,
+) -> Result<f32, String> {
+    let manager = audio_manager.lock().await;
+    manager
+        .get_signal_peak()
+        .await
+        .map_err(|e| format!("{}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Find CamillaDSP binary
+    let camilla_binary = autoeq_backend::camilla::find_camilladsp_binary().unwrap_or_else(|e| {
+        eprintln!("Warning: CamillaDSP binary not found: {}", e);
+        eprintln!("Audio playback features will not be available.");
+        std::path::PathBuf::from("/usr/local/bin/camilladsp")
+    });
+
+    // Create AudioManager (wrapped in Mutex for Tauri state)
+    let audio_manager = Mutex::new(AudioManager::new(camilla_binary));
+
     tauri::Builder::default()
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(CancellationState::new())
         .manage(SharedAudioState::default())
+        .manage(audio_manager)
         .invoke_handler(tauri::generate_handler![
             greet,
             run_optimization,
@@ -313,7 +595,14 @@ pub fn run() {
             audio::get_audio_devices,
             audio::set_audio_device,
             audio::get_audio_config,
-            audio::get_device_properties
+            audio::get_device_properties,
+            audio_start_playback,
+            audio_stop_playback,
+            audio_update_filters,
+            audio_get_state,
+            audio_start_recording,
+            audio_stop_recording,
+            audio_get_signal_peak
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

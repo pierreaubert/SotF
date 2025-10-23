@@ -4,6 +4,7 @@ import { CaptureController, type CaptureParameters, type DeviceInfo } from './ca
 import { CaptureStorage } from './capture-storage';
 import { CSVExporter } from './csv-export';
 import { CaptureGraphRenderer } from './capture-graph';
+import { RoutingMatrix } from '@audio-player/audio-routing';
 
 export interface CaptureData {
   frequencies: number[];
@@ -97,6 +98,11 @@ export class CaptureModalManager {
   private currentCaptureData: CaptureData | null = null;
   private captureVolume: number = 70;
   private outputVolume: number = 50;
+  
+  // Routing matrices
+  private inputRoutingMatrix: RoutingMatrix | null = null;
+  private outputRoutingMatrix: RoutingMatrix | null = null;
+  private deviceChannelInfo: { input: number | null; output: number | null } = { input: null, output: null };
 
   // Callbacks
   private onCaptureComplete?: (frequencies: number[], magnitudes: number[]) => void;
@@ -501,6 +507,7 @@ export class CaptureModalManager {
     if (!selectedDevice || selectedDevice === 'default') {
       // For default device, we don't know the exact channels
       this.inputChannelsInfo.textContent = '??';
+      this.deviceChannelInfo.input = null;
       return;
     }
     
@@ -511,9 +518,17 @@ export class CaptureModalManager {
     // Parse channel info from text like "Device Name (1ch 44kHz)"
     const channelMatch = deviceText.match(/(\d+)ch/);
     if (channelMatch) {
+      const channels = parseInt(channelMatch[1]);
       this.inputChannelsInfo.textContent = channelMatch[1];
+      this.deviceChannelInfo.input = channels;
+      
+      // Update routing matrix if it exists
+      if (this.inputRoutingMatrix) {
+        this.inputRoutingMatrix.updateChannelCount(channels);
+      }
     } else {
       this.inputChannelsInfo.textContent = '??';
+      this.deviceChannelInfo.input = null;
     }
   }
   
@@ -670,6 +685,9 @@ export class CaptureModalManager {
       
       // Refresh records list
       await this.renderRecordsList();
+      
+      // Refresh channel select options to include new sweep
+      this.updateChannelSelectOptions(this.currentCaptureData.metadata.outputChannel);
     } catch (error) {
       console.error('Failed to save capture:', error);
     }
@@ -984,6 +1002,23 @@ export class CaptureModalManager {
     const selectedDisplay = this.captureChannelSelect.value;
     console.log(`Channel display changed to: ${selectedDisplay}`);
     
+    // Handle special aggregate options
+    if (selectedDisplay === '__sum_all__') {
+      this.displaySumOfAllSweeps();
+      return;
+    } else if (selectedDisplay === '__average_all__') {
+      this.displayAverageOfAllSweeps();
+      return;
+    }
+    
+    // Handle individual sweep selection
+    if (selectedDisplay.startsWith('sweep_')) {
+      const captureId = selectedDisplay.substring(6); // Remove 'sweep_' prefix
+      this.displaySavedSweep(captureId);
+      return;
+    }
+    
+    // Handle current capture display modes
     if (!this.currentCaptureData) {
       console.warn('No current capture data available');
       this.captureGraphRenderer.renderPlaceholder();
@@ -1052,9 +1087,43 @@ export class CaptureModalManager {
       this.captureChannelSelect.appendChild(avgOption);
     }
     
+    // Add separator before saved sweeps
+    const allSavedCaptures = CaptureStorage.getAllCaptures();
+    if (allSavedCaptures.length > 0) {
+      const separator = document.createElement('option');
+      separator.disabled = true;
+      separator.textContent = '──────────';
+      this.captureChannelSelect.appendChild(separator);
+      
+      // Add sum/average of all sweeps options
+      const sumOption = document.createElement('option');
+      sumOption.value = '__sum_all__';
+      sumOption.textContent = `Sum of All ${allSavedCaptures.length} Sweeps`;
+      this.captureChannelSelect.appendChild(sumOption);
+      
+      const avgAllOption = document.createElement('option');
+      avgAllOption.value = '__average_all__';
+      avgAllOption.textContent = `Average of All ${allSavedCaptures.length} Sweeps`;
+      this.captureChannelSelect.appendChild(avgAllOption);
+      
+      // Add separator before individual sweeps
+      const separator2 = document.createElement('option');
+      separator2.disabled = true;
+      separator2.textContent = '──────────';
+      this.captureChannelSelect.appendChild(separator2);
+      
+      // Add each saved sweep
+      allSavedCaptures.forEach((capture, index) => {
+        const sweepOption = document.createElement('option');
+        sweepOption.value = `sweep_${capture.id}`;
+        sweepOption.textContent = `${index + 1}. ${capture.name}`;
+        this.captureChannelSelect.appendChild(sweepOption);
+      });
+    }
+    
     // Set default selection
     this.captureChannelSelect.value = 'current';
-    console.log(`Updated channel options for output: ${outputChannel}`);
+    console.log(`Updated channel options for output: ${outputChannel}, ${allSavedCaptures.length} saved sweeps`);
   }
 
   private getChannelDisplayName(outputChannel: string): string {
@@ -1243,6 +1312,7 @@ export class CaptureModalManager {
       if (!selectedDevice || selectedDevice === 'default') {
         // For default device, assume stereo (2 channels)
         this.outputChannelsInfo.textContent = '2';
+        this.deviceChannelInfo.output = 2;
       } else {
         // Extract channel info from the selected option's text
         const selectedOption = this.modalOutputDevice.options[this.modalOutputDevice.selectedIndex];
@@ -1251,9 +1321,17 @@ export class CaptureModalManager {
         // Parse channel info from text like "Device Name (2ch 44kHz)"
         const channelMatch = deviceText.match(/(\d+)ch/);
         if (channelMatch) {
+          const channels = parseInt(channelMatch[1]);
           this.outputChannelsInfo.textContent = channelMatch[1];
+          this.deviceChannelInfo.output = channels;
+          
+          // Update routing matrix if it exists
+          if (this.outputRoutingMatrix) {
+            this.outputRoutingMatrix.updateChannelCount(channels);
+          }
         } else {
           this.outputChannelsInfo.textContent = '??';
+          this.deviceChannelInfo.output = null;
         }
       }
     }
@@ -1617,14 +1695,169 @@ export class CaptureModalManager {
   private showRoutingMatrix(type: 'input' | 'output'): void {
     console.log(`Showing ${type} routing matrix`);
     
-    // For now, just show an alert to confirm it's working
-    // TODO: Implement full routing matrix UI
-    alert(`Channel routing matrix for ${type} devices.\n\nThis feature allows you to map physical channels to logical channels.\n\n(Full implementation coming soon)`);
+    const channelCount = type === 'input' ? this.deviceChannelInfo.input : this.deviceChannelInfo.output;
     
-    // In a full implementation, this would:
-    // 1. Create a modal overlay
-    // 2. Display a matrix grid of channel mappings
-    // 3. Allow clicking to swap channel routings
-    // 4. Apply the routing to the audio processor
+    if (channelCount === null || channelCount === undefined || channelCount <= 0) {
+      alert(`Cannot show routing matrix: ${type === 'input' ? 'Input' : 'Output'} device channel count is unknown.\n\nPlease ensure a device is selected and detected properly.`);
+      return;
+    }
+    
+    // Get or create the appropriate routing matrix
+    if (type === 'input') {
+      if (!this.inputRoutingMatrix) {
+        this.inputRoutingMatrix = new RoutingMatrix(channelCount);
+        this.inputRoutingMatrix.setOnRoutingChange((routing) => {
+          console.log('Input routing changed:', routing);
+          // Store routing configuration for use during capture
+        });
+      } else {
+        // Update channel count if it changed
+        this.inputRoutingMatrix.updateChannelCount(channelCount);
+      }
+      
+      // Show the routing matrix UI
+      if (this.inputRoutingBtn) {
+        this.inputRoutingMatrix.show(this.inputRoutingBtn);
+      }
+    } else {
+      if (!this.outputRoutingMatrix) {
+        this.outputRoutingMatrix = new RoutingMatrix(channelCount);
+        this.outputRoutingMatrix.setOnRoutingChange((routing) => {
+          console.log('Output routing changed:', routing);
+          // Store routing configuration for use during playback
+        });
+      } else {
+        // Update channel count if it changed
+        this.outputRoutingMatrix.updateChannelCount(channelCount);
+      }
+      
+      // Show the routing matrix UI
+      if (this.outputRoutingBtn) {
+        this.outputRoutingMatrix.show(this.outputRoutingBtn);
+      }
+    }
+  }
+  
+  /**
+   * Display a saved sweep by ID
+   */
+  private displaySavedSweep(captureId: string): void {
+    const capture = CaptureStorage.getCapture(captureId);
+    if (!capture) {
+      console.error(`Capture ${captureId} not found`);
+      if (this.captureModalStatus) {
+        this.captureModalStatus.textContent = `⚠️ Sweep not found`;
+      }
+      return;
+    }
+    
+    console.log(`Displaying saved sweep: ${capture.name}`);
+    
+    if (this.captureGraphRenderer) {
+      this.captureGraphRenderer.renderGraph({
+        frequencies: capture.frequencies,
+        rawMagnitudes: capture.rawMagnitudes,
+        smoothedMagnitudes: capture.smoothedMagnitudes,
+        rawPhase: capture.rawPhase,
+        smoothedPhase: capture.smoothedPhase
+      });
+    }
+    
+    // Update status
+    if (this.captureModalStatus) {
+      this.captureModalStatus.textContent = `Displaying: ${capture.name}`;
+    }
+  }
+  
+  /**
+   * Calculate and display the sum of all saved sweeps
+   */
+  private displaySumOfAllSweeps(): void {
+    const allCaptures = CaptureStorage.getAllCaptures();
+    if (allCaptures.length === 0) {
+      console.warn('No saved captures to sum');
+      return;
+    }
+    
+    console.log(`Calculating sum of ${allCaptures.length} sweeps`);
+    
+    // Use the first capture as reference for frequencies
+    const referenceFreqs = allCaptures[0].frequencies;
+    const sumMagnitudes = new Array(referenceFreqs.length).fill(0);
+    
+    // Sum all magnitudes (in dB, this adds the amplitudes)
+    allCaptures.forEach(capture => {
+      if (capture.frequencies.length === referenceFreqs.length) {
+        for (let i = 0; i < referenceFreqs.length; i++) {
+          // Convert dB to linear, add, then convert back
+          // dB = 20*log10(amplitude), so amplitude = 10^(dB/20)
+          const linear = Math.pow(10, capture.smoothedMagnitudes[i] / 20);
+          const currentLinear = Math.pow(10, sumMagnitudes[i] / 20);
+          const newLinear = currentLinear + linear;
+          sumMagnitudes[i] = 20 * Math.log10(newLinear);
+        }
+      }
+    });
+    
+    if (this.captureGraphRenderer) {
+      this.captureGraphRenderer.renderGraph({
+        frequencies: referenceFreqs,
+        rawMagnitudes: sumMagnitudes,
+        smoothedMagnitudes: sumMagnitudes,
+        rawPhase: [],
+        smoothedPhase: []
+      });
+    }
+    
+    // Update status
+    if (this.captureModalStatus) {
+      this.captureModalStatus.textContent = `Sum of ${allCaptures.length} sweeps`;
+    }
+  }
+  
+  /**
+   * Calculate and display the average of all saved sweeps
+   */
+  private displayAverageOfAllSweeps(): void {
+    const allCaptures = CaptureStorage.getAllCaptures();
+    if (allCaptures.length === 0) {
+      console.warn('No saved captures to average');
+      return;
+    }
+    
+    console.log(`Calculating average of ${allCaptures.length} sweeps`);
+    
+    // Use the first capture as reference for frequencies
+    const referenceFreqs = allCaptures[0].frequencies;
+    const avgMagnitudes = new Array(referenceFreqs.length).fill(0);
+    
+    // Average all magnitudes (in dB)
+    allCaptures.forEach(capture => {
+      if (capture.frequencies.length === referenceFreqs.length) {
+        for (let i = 0; i < referenceFreqs.length; i++) {
+          avgMagnitudes[i] += capture.smoothedMagnitudes[i];
+        }
+      }
+    });
+    
+    // Divide by count to get average
+    for (let i = 0; i < avgMagnitudes.length; i++) {
+      avgMagnitudes[i] /= allCaptures.length;
+    }
+    
+    if (this.captureGraphRenderer) {
+      this.captureGraphRenderer.renderGraph({
+        frequencies: referenceFreqs,
+        rawMagnitudes: avgMagnitudes,
+        smoothedMagnitudes: avgMagnitudes,
+        rawPhase: [],
+        smoothedPhase: []
+      });
+    }
+    
+    // Update status
+    if (this.captureModalStatus) {
+      this.captureModalStatus.textContent = `Average of ${allCaptures.length} sweeps`;
+    }
   }
 }

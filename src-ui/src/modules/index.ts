@@ -13,3 +13,16 @@ export {
   type FilterParam,
 } from "../../../src-audio-player/src/audio-player";
 export { LayoutManager } from "./layout-manager";
+
+// Rust audio backend
+export {
+  AudioManagerRust,
+  audioManagerRust,
+  type FilterParams,
+  type AudioStreamState,
+  type AudioStateChangedEvent,
+  type AudioPositionUpdateEvent,
+  type AudioErrorEvent,
+  type AudioSignalPeakEvent,
+  AudioState,
+} from "./audio-manager-rust";

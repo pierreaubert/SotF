@@ -6,6 +6,8 @@ import {
   OPTIMIZATION_STEPS,
 } from "./optimization-constants";
 import { CaptureModalManager } from "../../../src-audio-capture/src/capture-modal-manager";
+import { RoutingMatrix } from "../../../src-audio-player/src/audio-routing";
+import { CaptureStorage, type StoredCapture } from "../../../src-audio-capture/src/capture-storage";
 
 export class UIManager {
   private form!: HTMLFormElement;

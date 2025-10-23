@@ -8,6 +8,12 @@ This is a desktop application for AutoEQ. It provides a graphical user interface
 
 The application uses Tauri (Rust backend + TypeScript frontend) to provide a cross-platform desktop experience.
 
+### What's new: Rust audio backend with CamillaDSP
+
+- The audio engine now runs in Rust and controls a bundled CamillaDSP process.
+- The frontend communicates through a TypeScript API wrapper over Tauri IPC.
+- Supports playback/preview, recording or loopback capture, device selection, real‑time EQ filter updates, and rich progress/events.
+
 ## Installation
 
 ### Rust
@@ -76,6 +82,17 @@ This will create platform-specific bundles in `src-tauri/target/release/bundle/`
 - **Linux**: `.deb`, `.AppImage` files
 - **Windows**: `.msi` and `.exe` files
 
+## CamillaDSP bundling and audio backend
+
+- CamillaDSP is bundled with the app; no separate installation is required.
+- The Rust backend manages launch, configuration, and lifecycle automatically during playback/preview.
+- Device enumeration, selection, and real‑time filter updates are exposed to the frontend via Tauri commands and events.
+- Configuration and logs are handled in platform‑standard app data directories.
+
+## Demo audio
+
+The app includes demo audio files for quick testing and validation. See `public/demo-audio/` for details.
+
 ## Using Just
 
 ```shell
@@ -108,7 +125,18 @@ autoeq-app/
 ## Testing
 
 ```shell
+# Run all tests (Rust + TypeScript)
 just test
+
+# TypeScript tests
+npm run test              # all tests (Vitest)
+npm run test:unit         # unit tests only
+npm run test:e2e          # E2E tests
+
+# Rust tests
+just test-rust            # convenience wrapper
+# or
+cargo test --workspace --release
 ```
 
 ## Troubleshooting
